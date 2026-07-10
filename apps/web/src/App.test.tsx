@@ -47,7 +47,7 @@ describe("intake", () => {
 
 describe("live run", () => {
   it("shows genuine persisted events ordered by seq, the run id, and the delegation stage", async () => {
-    render(<App transport={fastTransport()} />);
+    render(<App transport={createFixtureTransport(60)} />);
     await submitAudit();
     expect(await screen.findByText("Reading your page in context.")).toBeInTheDocument();
     const log = await screen.findByRole("log", { name: /persisted run events/i });
