@@ -256,7 +256,7 @@ function selectMatchingGoldenReference(componentType: Finding["componentType"], 
   const family: Record<Finding["componentType"], string[]> = {
     HERO_HEADLINE: ["HERO_HEADLINE", "VALUE_PROPOSITION"],
     VALUE_PROPOSITION: ["VALUE_PROPOSITION", "HERO_HEADLINE"],
-    FEATURE_COPY: ["VALUE_PROPOSITION"],
+    FEATURE_COPY: ["VALUE_PROPOSITION", "HERO_HEADLINE"],
     MICROCOPY: ["PRIMARY_CTA", "VALUE_PROPOSITION"],
     PRIMARY_CTA: ["PRIMARY_CTA"],
     TRUST_COPY: ["TRUST_COPY"],

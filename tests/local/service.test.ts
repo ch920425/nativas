@@ -124,6 +124,28 @@ test("feature copy may reuse only the reviewed value-proposition precedent famil
   assert.deepEqual(parsed.findings[1].kbRefs, ["value_gold"]);
 });
 
+test("feature copy falls back to the reviewed hero precedent when no value-proposition precedent exists", () => {
+  const variant = JSON.stringify({
+    title: "Audit",
+    executiveSummary: "Summary",
+    findings: [
+      { componentType: "HERO_HEADLINE", issueType: "CULTURAL_TONE", severity: "high", componentRef: { kind: "TEXT_ANCHOR", value: "Hero" }, sourceCopy: "A", currentTargetCopy: "B", proposedTargetCopy: "C", businessImpact: "Impact", rationale: "Reason", confidence: 0.9, evidenceRefs: [{ packId: "linkup", evidenceId: "market_1" }], kbRefs: ["hero_gold"] },
+      { componentType: "FEATURE_COPY", issueType: "TERMINOLOGY", severity: "medium", componentRef: { kind: "TEXT_ANCHOR", value: "Feature" }, sourceCopy: "A", currentTargetCopy: "B", proposedTargetCopy: "C", businessImpact: "Impact", rationale: "Reason", confidence: 0.8, evidenceRefs: [{ packId: "linkup", evidenceId: "market_1" }], kbRefs: [] },
+      { componentType: "PRIMARY_CTA", issueType: "CTA_MARKET_FIT", severity: "medium", componentRef: { kind: "TEXT_ANCHOR", value: "CTA" }, sourceCopy: "A", currentTargetCopy: "B", proposedTargetCopy: "C", businessImpact: "Impact", rationale: "Reason", confidence: 0.7, evidenceRefs: [{ packId: "linkup", evidenceId: "market_1" }], kbRefs: ["cta_gold"] },
+    ],
+  });
+  const parsed = parseFindings(
+    variant,
+    [{ id: "market_1", url: "https://example.org", title: "Evidence", content: "Evidence" }],
+    [
+      { id: "hero_gold", componentType: "HERO_HEADLINE", precedent: "Pattern", rationale: "Reason" },
+      { id: "cta_gold", componentType: "PRIMARY_CTA", precedent: "Pattern", rationale: "Reason" },
+      { id: "trust_gold", componentType: "TRUST_COPY", precedent: "Pattern", rationale: "Reason" },
+    ],
+  );
+  assert.deepEqual(parsed.findings[1].kbRefs, ["hero_gold"]);
+});
+
 test("real local workflow persists capture, Linkup, KB, Hermes events, and exactly three findings", async () => {
   const service = new LocalAuditService({
     statePath: null,

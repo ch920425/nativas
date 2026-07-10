@@ -32,7 +32,7 @@ Cerebras strict JSON Schema mode was verified directly against `gemma-4-31b`. He
 - confidence range validation;
 - evidence and KB IDs must resolve to supplied packets;
 - only mechanical alias normalization;
-- a missing KB citation may be repaired only from an existing, reviewed precedent in the same component family.
+- a missing KB citation may be repaired only from an existing, reviewed precedent in the applicable copy component family (feature copy may use value-proposition, then hero, precedent).
 
 Unknown enums or invented references remain terminal `REPORT_INVALID` failures.
 
