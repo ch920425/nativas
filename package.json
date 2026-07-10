@@ -9,7 +9,9 @@
   ],
   "scripts": {
     "test:backend": "node --test tests/backend/*.test.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "test": "npm run test:backend && node --test tests/kb/*.test.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "validate": "bash scripts/validate-repo.sh && bash scripts/validate-hermes-spec.sh"
   },
   "devDependencies": {
     "@types/node": "^24.13.3",

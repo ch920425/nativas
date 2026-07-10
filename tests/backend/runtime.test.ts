@@ -3,6 +3,9 @@ import test from "node:test";
 import { MemoryAuditStore, StateConflict } from "../../apps/runtime/src/store.ts";
 import { HermesCreateError, HermesRelay, normalizeHermesEvent } from "../../apps/runtime/src/hermes.ts";
 import { assertCompleteCapture, assertSafeCaptureUrl, capabilityMatches, hashCapability, searchLinkupOnce, verifyDodoWebhook } from "../../apps/runtime/src/adapters.ts";
+import { NavitasOps, ParentCapabilityAuthorizer } from "../../apps/runtime/src/ops.ts";
+import { processDodoWebhook } from "../../apps/runtime/src/payment.ts";
+import { capturePublicPage } from "../../workers/capture/src/index.ts";
 
 test("free audit allows only its legal transition path", () => {
   const store = new MemoryAuditStore(); const audit = store.createFree("aud_1", "https://example.com/ko", "KR_TO_US");
@@ -17,6 +20,14 @@ test("maybe-dispatched Hermes create fails closed and creates no replacement", a
   await assert.rejects(() => relay.start(audit.publicId, "attempt_1", {}));
   assert.equal(store.require(audit.publicId).runStartState, "UNCERTAIN"); assert.equal(store.require(audit.publicId).error?.code, "HERMES_START_UNCERTAIN");
   assert.throws(() => store.reserveHermesStart(audit.publicId, "attempt_2"), StateConflict);
+});
+
+test("proven pre-dispatch failure releases the reservation for one safe retry", async () => {
+  const store = new MemoryAuditStore(); const audit = store.createFree("aud_retry", "https://example.com", "KR_TO_US"); store.transition(audit.publicId, "ELIGIBILITY_CHECK");
+  const relay = new HermesRelay(store, { createRun: async () => { throw new HermesCreateError("NOT_DISPATCHED", "connection refused before write"); }, getRun: async () => ({ status: "queued" }) });
+  await assert.rejects(() => relay.start(audit.publicId, "attempt_1", {}));
+  assert.equal(store.require(audit.publicId).runStartState, "UNRESERVED");
+  store.reserveHermesStart(audit.publicId, "attempt_2");
 });
 
 test("acknowledged Hermes create binds a run and emits truthful relay lifecycle events", async () => {
@@ -47,9 +58,33 @@ test("capture requires all four Browser Run evidence artifacts and rejects unsaf
   assert.equal(assertSafeCaptureUrl("https://example.com/ko").hostname, "example.com"); assert.throws(() => assertSafeCaptureUrl("http://127.0.0.1"), /UNSAFE_URL/);
 });
 
+test("capture validates DNS and every redirect before Browser Run", async () => {
+  let snapshots = 0;
+  const dependencies = {
+    resolve: async (host: string) => host === "private.example.com" ? ["10.0.0.1"] : ["203.0.113.10"],
+    preflight: async () => ({ finalUrl: "https://private.example.com/en", redirects: ["https://example.com/start"] }),
+    snapshot: async (url: string) => { snapshots++; return { sourceUrl: url, artifacts: [] }; }
+  };
+  await assert.rejects(() => capturePublicPage("https://example.com", dependencies), /UNSAFE_URL/);
+  assert.equal(snapshots, 0);
+});
+
+test("capture enforces redirect, byte, and evidence completeness limits", async () => {
+  const base = { resolve: async () => ["203.0.113.10"], preflight: async () => ({ finalUrl: "https://example.com/en", redirects: [] as string[] }), snapshot: async (url: string) => ({ sourceUrl: url, artifacts: ["SCREENSHOT", "HTML", "MARKDOWN", "ACCESSIBILITY_TREE"].map((kind) => ({ kind, bytes: 10 })) }) };
+  const result = await capturePublicPage("https://example.com", base); assert.equal(result.artifacts.length, 4);
+  await assert.rejects(() => capturePublicPage("https://example.com", { ...base, preflight: async () => ({ finalUrl: "https://example.com", redirects: Array(4).fill("https://example.com") }) }), /CAPTURE_INCOMPLETE/);
+  await assert.rejects(() => capturePublicPage("https://example.com", { ...base, snapshot: async (url) => ({ sourceUrl: url, artifacts: [{ kind: "SCREENSHOT", bytes: 13_000_000 }] }) }), /CAPTURE_INCOMPLETE/);
+});
+
 test("Linkup makes a single bounded standard call and degrades on failure", async () => {
   let calls = 0; const available = await searchLinkupOnce({ search: async ({ depth, maxResults }) => { calls++; assert.equal(depth, "standard"); assert.equal(maxResults, 3); return { sources: [{ id: "source_1", url: "https://example.com", title: "Example" }] }; } }, "B2B CTA");
   assert.equal(calls, 1); assert.equal(available.status, "AVAILABLE"); const unavailable = await searchLinkupOnce({ search: async () => { throw new Error("timeout"); } }, "B2B CTA"); assert.deepEqual(unavailable, { status: "UNAVAILABLE", code: "RESEARCH_UNAVAILABLE" });
+});
+
+test("Linkup rejects malformed, insecure, empty, and oversized result packets", async () => {
+  for (const sources of [[], [{ id: "1", url: "http://example.com", title: "bad" }], Array.from({ length: 4 }, (_, index) => ({ id: String(index), url: "https://example.com", title: "x" })), [{ id: 1, url: "https://example.com", title: "bad" }]]) {
+    assert.deepEqual(await searchLinkupOnce({ search: async () => ({ sources }) }, "query"), { status: "UNAVAILABLE", code: "RESEARCH_UNAVAILABLE" });
+  }
 });
 
 test("report publication validates references and is idempotent", () => {
@@ -66,4 +101,28 @@ test("verified payment event creates exactly one two-surface paid child", () => 
 test("Dodo raw-body verification requires all delivery headers and capabilities are scoped", () => {
   const verifier = { unwrap: (body: string) => ({ id: "evt", type: "payment.succeeded", data: body }) }; assert.throws(() => verifyDodoWebhook(verifier, "{}", {}), /WEBHOOK_INVALID/); assert.equal(verifyDodoWebhook(verifier, "{}", { "webhook-id": "a", "webhook-signature": "b", "webhook-timestamp": "c" }).id, "evt");
   const secret = "random-secret"; assert.equal(capabilityMatches(hashCapability(secret), secret), true); assert.equal(capabilityMatches(hashCapability(secret), "wrong"), false);
+});
+
+test("parent capability denies missing, expired, wrong-run, and child calls", async () => {
+  const capability = "parent-only-secret"; const records = new Map([["aud_ops", { auditId: "aud_ops", runId: "run_ops", hash: hashCapability(capability), expiresAt: 2000 }]]);
+  const ops = new NavitasOps(new ParentCapabilityAuthorizer(records, () => 1000), { capture_site: (input) => input.auditId, search_market_evidence: () => null, submit_report: () => null });
+  assert.equal(await ops.call("capture_site", { auditId: "aud_ops", runId: "run_ops", parentCapability: capability }), "aud_ops");
+  await assert.rejects(() => ops.call("capture_site", { auditId: "aud_ops", runId: "child_run", parentCapability: capability }), /PARENT_CAPABILITY_DENIED/);
+  await assert.rejects(() => ops.call("capture_site", { auditId: "aud_ops", runId: "run_ops", parentCapability: "wrong" }), /PARENT_CAPABILITY_DENIED/);
+  await assert.rejects(() => new NavitasOps(new ParentCapabilityAuthorizer(records, () => 3000), { capture_site: () => null, search_market_evidence: () => null, submit_report: () => null }).call("capture_site", { auditId: "aud_ops", runId: "run_ops", parentCapability: capability }), /PARENT_CAPABILITY_DENIED/);
+  await assert.rejects(() => ops.call("unknown", { auditId: "aud_ops", runId: "run_ops", parentCapability: capability }), /TOOL_NOT_ALLOWED/);
+});
+
+test("verified canonical Dodo event is atomic and duplicate delivery cannot double-create", () => {
+  const store = new MemoryAuditStore(); const free = store.createFree("aud_dodo", "https://example.com", "KR_TO_US"); store.transition(free.publicId, "ELIGIBILITY_CHECK"); store.transition(free.publicId, "FREE_RUNNING"); store.transition(free.publicId, "FREE_REPORT");
+  const client = { unwrap: () => ({ id: "provider_event", type: "payment.succeeded", data: { metadata: { auditId: free.publicId } } }) };
+  const headers = { "webhook-id": "delivery_1", "webhook-signature": "signature", "webhook-timestamp": "timestamp" };
+  const first = processDodoWebhook(store, client, "raw-body", headers); const duplicate = processDodoWebhook(store, client, "raw-body", headers);
+  assert.equal(first.publicId, duplicate.publicId); assert.equal([...store.audits.values()].filter((audit) => audit.kind === "PAID").length, 1);
+});
+
+test("Dodo rejects noncanonical event type and missing audit metadata", () => {
+  const store = new MemoryAuditStore(); const headers = { "webhook-id": "delivery", "webhook-signature": "signature", "webhook-timestamp": "timestamp" };
+  assert.throws(() => processDodoWebhook(store, { unwrap: () => ({ id: "event", type: "payment.success", data: { metadata: { auditId: "aud" } } }) }, "raw", headers), /WEBHOOK_INVALID/);
+  assert.throws(() => processDodoWebhook(store, { unwrap: () => ({ id: "event", type: "payment.succeeded", data: {} }) }, "raw", headers), /WEBHOOK_INVALID/);
 });

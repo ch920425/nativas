@@ -1,0 +1,5 @@
+{
+  "name": "@navitas/runtime",
+  "private": true,
+  "type": "module"
+}
