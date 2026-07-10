@@ -62,3 +62,22 @@ Known gaps (deadline-scoped, honest):
 - WCAG AA contrast reviewed by token choice (light-on-dark ≥ 4.5:1 for body text);
   automated axe pass is a follow-up alongside browser E2E.
 - grok CLI remains a manual auth gate (403 from cli-chat-proxy.grok.com).
+
+## Milestone 4 — Merge to main with the nativas rename (2026-07-10)
+
+Landed `agent/frontend` on `main` together with the repo-wide product rename
+(old spelling → nativas), per direct request.
+
+- Committed the pending rename on `main` (skills, hermes assets, docs, package
+  scope now `@nativas/*`), then merged `agent/frontend`.
+- Five conflicts in `apps/web` (package.json, App.tsx, App.test.tsx,
+  fixtureTransport.ts, contracts.ts): resolved by taking the Lane 1
+  implementation and applying the rename inside it (`"@nativas/contracts": "*"`,
+  wordmark/copy strings).
+- Regenerated `package-lock.json` under the new package names.
+- Added `src/vite-env.d.ts` (Vite client types + `VITE_TRANSPORT` typing); the
+  strict build had no `ImportMeta.env` typing before.
+- Kept `scripts/validate-repo.sh` untouched — it is the rename guard and must
+  keep grepping for the stale old spelling.
+- Verified on merged `main`: 36/36 vitest, `tsc -b` clean, `vite build` clean
+  (11.3 kB CSS / 304.8 kB JS gzipped 97.9 kB).

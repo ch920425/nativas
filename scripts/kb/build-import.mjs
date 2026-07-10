@@ -7,7 +7,7 @@ import { corpusDigest, validateCorpus } from "../../apps/kb-mcp/src/retrieval.mj
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const outIndex = process.argv.indexOf("--out");
-const out = outIndex >= 0 ? path.resolve(process.argv[outIndex + 1]) : (process.env.NAVITAS_KB_IMPORT_OUT ? path.resolve(process.env.NAVITAS_KB_IMPORT_OUT) : path.join(root, ".runtime", "gbrain-import"));
+const out = outIndex >= 0 ? path.resolve(process.argv[outIndex + 1]) : (process.env.NATIVAS_KB_IMPORT_OUT ? path.resolve(process.env.NATIVAS_KB_IMPORT_OUT) : path.join(root, ".runtime", "gbrain-import"));
 if (!out || out === root) throw new Error("provide --out <directory>");
 const fixture = path.join(root, "fixtures/kb/golden-six.v1.json");
 const records = JSON.parse(await readFile(fixture, "utf8"));

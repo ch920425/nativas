@@ -1,7 +1,7 @@
 import { capabilityMatches } from "./adapters.ts";
 
-export const NAVITAS_OPS_TOOLS = ["capture_site", "search_market_evidence", "submit_report"] as const;
-export type NavitasOpsTool = typeof NAVITAS_OPS_TOOLS[number];
+export const NATIVAS_OPS_TOOLS = ["capture_site", "search_market_evidence", "submit_report"] as const;
+export type NativasOpsTool = typeof NATIVAS_OPS_TOOLS[number];
 
 type CapabilityRecord = { auditId: string; runId: string; hash: string; expiresAt: number };
 
@@ -15,17 +15,17 @@ export class ParentCapabilityAuthorizer {
   }
 }
 
-export class NavitasOps {
+export class NativasOps {
   private readonly authorize: ParentCapabilityAuthorizer;
-  private readonly handlers: Record<NavitasOpsTool, (input: Record<string, unknown>) => unknown | Promise<unknown>>;
-  constructor(authorize: ParentCapabilityAuthorizer, handlers: Record<NavitasOpsTool, (input: Record<string, unknown>) => unknown | Promise<unknown>>) { this.authorize = authorize; this.handlers = handlers; }
+  private readonly handlers: Record<NativasOpsTool, (input: Record<string, unknown>) => unknown | Promise<unknown>>;
+  constructor(authorize: ParentCapabilityAuthorizer, handlers: Record<NativasOpsTool, (input: Record<string, unknown>) => unknown | Promise<unknown>>) { this.authorize = authorize; this.handlers = handlers; }
   async call(tool: string, input: Record<string, unknown>): Promise<unknown> {
-    if (!NAVITAS_OPS_TOOLS.includes(tool as NavitasOpsTool)) throw new Error("TOOL_NOT_ALLOWED");
+    if (!NATIVAS_OPS_TOOLS.includes(tool as NativasOpsTool)) throw new Error("TOOL_NOT_ALLOWED");
     const { auditId, runId, parentCapability } = input;
     if (typeof auditId !== 'string' || typeof runId !== 'string' || typeof parentCapability !== 'string') throw new Error("PARENT_CAPABILITY_DENIED");
     this.authorize.authorize(auditId, runId, parentCapability);
     const safeInput = { ...input };
     delete safeInput.parentCapability;
-    return this.handlers[tool as NavitasOpsTool](safeInput);
+    return this.handlers[tool as NativasOpsTool](safeInput);
   }
 }

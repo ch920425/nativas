@@ -95,11 +95,11 @@ test("import preparation is reproducible and yields six markdown pages plus a ma
 });
 
 test("import preparation supports a deterministic isolated output override", async () => {
-  const out = await mkdtemp(path.join(os.tmpdir(), "navitas-kb-import-default-"));
+  const out = await mkdtemp(path.join(os.tmpdir(), "nativas-kb-import-default-"));
   const result = spawnSync(process.execPath, ["scripts/kb/build-import.mjs"], {
     cwd: root,
     encoding: "utf8",
-    env: { ...process.env, NAVITAS_KB_IMPORT_OUT: out }
+    env: { ...process.env, NATIVAS_KB_IMPORT_OUT: out }
   });
   assert.equal(result.status, 0, result.stderr);
   const manifest = JSON.parse(await readFile(path.join(out, "manifest.json"), "utf8"));
@@ -117,7 +117,7 @@ test("gbrain preparation requires explicit isolated paths and stops on an init f
   assert.notEqual(missing.status, 0);
   assert.match(missing.stderr, /Usage:/);
 
-  const sandbox = await mkdtemp(path.join(os.tmpdir(), "navitas-kb-gbrain-init-error-"));
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "nativas-kb-gbrain-init-error-"));
   const bin = path.join(sandbox, "bin");
   const imported = path.join(sandbox, "import");
   await mkdir(bin);
@@ -135,7 +135,7 @@ test("gbrain preparation requires explicit isolated paths and stops on an init f
 });
 
 test("gbrain preparation uses an isolated home and preserves keyword fallback after a bounded embedding failure", async () => {
-  const sandbox = await mkdtemp(path.join(os.tmpdir(), "navitas-kb-gbrain-"));
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "nativas-kb-gbrain-"));
   const bin = path.join(sandbox, "bin");
   const imported = path.join(sandbox, "import");
   await mkdir(bin);
@@ -154,7 +154,7 @@ test("gbrain preparation uses an isolated home and preserves keyword fallback af
 });
 
 test("gbrain preparation accepts an isolated environment home and a successful optional embedding pass", async () => {
-  const sandbox = await mkdtemp(path.join(os.tmpdir(), "navitas-kb-gbrain-env-"));
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "nativas-kb-gbrain-env-"));
   const bin = path.join(sandbox, "bin");
   const imported = path.join(sandbox, "import");
   await mkdir(bin);
@@ -170,11 +170,11 @@ test("gbrain preparation accepts an isolated environment home and a successful o
   });
   assert.equal(result.status, 0, result.stderr);
   assert.doesNotMatch(result.stdout, /Embedding unavailable or timed out/);
-  assert.match(result.stdout, new RegExp(`Initialized isolated navitas gbrain at ${home}`));
+  assert.match(result.stdout, new RegExp(`Initialized isolated nativas gbrain at ${home}`));
 });
 
 test("gbrain preparation does not attempt embeddings unless explicitly requested", async () => {
-  const sandbox = await mkdtemp(path.join(os.tmpdir(), "navitas-kb-gbrain-no-embed-"));
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), "nativas-kb-gbrain-no-embed-"));
   const bin = path.join(sandbox, "bin");
   const imported = path.join(sandbox, "import");
   await mkdir(bin);

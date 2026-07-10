@@ -3,7 +3,7 @@ import test from "node:test";
 import { MemoryAuditStore, StateConflict } from "../../apps/runtime/src/store.ts";
 import { HermesCreateError, HermesRelay, normalizeHermesEvent } from "../../apps/runtime/src/hermes.ts";
 import { assertCompleteCapture, assertSafeCaptureUrl, capabilityMatches, hashCapability, searchLinkupOnce, verifyDodoWebhook } from "../../apps/runtime/src/adapters.ts";
-import { NavitasOps, ParentCapabilityAuthorizer } from "../../apps/runtime/src/ops.ts";
+import { NativasOps, ParentCapabilityAuthorizer } from "../../apps/runtime/src/ops.ts";
 import { processDodoWebhook } from "../../apps/runtime/src/payment.ts";
 import { capturePublicPage, validateLocaleCandidate } from "../../workers/capture/src/index.ts";
 
@@ -144,11 +144,11 @@ test("Dodo raw-body verification requires all delivery headers and capabilities 
 
 test("parent capability denies missing, expired, wrong-run, and child calls", async () => {
   const capability = "parent-only-secret"; const records = new Map([["aud_ops", { auditId: "aud_ops", runId: "run_ops", hash: hashCapability(capability), expiresAt: 2000 }]]);
-  const ops = new NavitasOps(new ParentCapabilityAuthorizer(records, () => 1000), { capture_site: (input) => input.auditId, search_market_evidence: () => null, submit_report: () => null });
+  const ops = new NativasOps(new ParentCapabilityAuthorizer(records, () => 1000), { capture_site: (input) => input.auditId, search_market_evidence: () => null, submit_report: () => null });
   assert.equal(await ops.call("capture_site", { auditId: "aud_ops", runId: "run_ops", parentCapability: capability }), "aud_ops");
   await assert.rejects(() => ops.call("capture_site", { auditId: "aud_ops", runId: "child_run", parentCapability: capability }), /PARENT_CAPABILITY_DENIED/);
   await assert.rejects(() => ops.call("capture_site", { auditId: "aud_ops", runId: "run_ops", parentCapability: "wrong" }), /PARENT_CAPABILITY_DENIED/);
-  await assert.rejects(() => new NavitasOps(new ParentCapabilityAuthorizer(records, () => 3000), { capture_site: () => null, search_market_evidence: () => null, submit_report: () => null }).call("capture_site", { auditId: "aud_ops", runId: "run_ops", parentCapability: capability }), /PARENT_CAPABILITY_DENIED/);
+  await assert.rejects(() => new NativasOps(new ParentCapabilityAuthorizer(records, () => 3000), { capture_site: () => null, search_market_evidence: () => null, submit_report: () => null }).call("capture_site", { auditId: "aud_ops", runId: "run_ops", parentCapability: capability }), /PARENT_CAPABILITY_DENIED/);
   await assert.rejects(() => ops.call("unknown", { auditId: "aud_ops", runId: "run_ops", parentCapability: capability }), /TOOL_NOT_ALLOWED/);
 });
 

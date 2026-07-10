@@ -1,0 +1,1 @@
+{ "transport": "connection_reset_after_request_write", "expectedError": "HERMES_START_UNCERTAIN", "retry": false }

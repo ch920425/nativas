@@ -3,7 +3,7 @@ import test from "node:test";
 import { canTransition, validateReport, type Audit, type AuditStatus, type Finding, type Report } from "../../packages/contracts/src/index.ts";
 import { assertCompleteCapture, assertPublicResolution, assertSafeCaptureUrl, isPrivateAddress, isUnsafeHostname, verifyDodoWebhook } from "../../apps/runtime/src/adapters.ts";
 import { HermesCreateError, HermesRelay, normalizeHermesEvent } from "../../apps/runtime/src/hermes.ts";
-import { NavitasOps, ParentCapabilityAuthorizer } from "../../apps/runtime/src/ops.ts";
+import { NativasOps, ParentCapabilityAuthorizer } from "../../apps/runtime/src/ops.ts";
 import { MemoryAuditStore, StateConflict } from "../../apps/runtime/src/store.ts";
 import { capturePublicPage } from "../../workers/capture/src/index.ts";
 
@@ -111,7 +111,7 @@ test("Hermes event normalization covers completed, failed, timestamped, and malf
 
 test("webhook verification wraps provider signature failures and ops reject malformed authority", async () => {
   assert.throws(() => verifyDodoWebhook({ unwrap: () => { throw new Error("bad signature"); } }, "raw", { "webhook-id": "id", "webhook-signature": "sig", "webhook-timestamp": "time" }), /WEBHOOK_INVALID/);
-  const ops = new NavitasOps(new ParentCapabilityAuthorizer(new Map()), { capture_site: () => null, search_market_evidence: () => null, submit_report: () => null });
+  const ops = new NativasOps(new ParentCapabilityAuthorizer(new Map()), { capture_site: () => null, search_market_evidence: () => null, submit_report: () => null });
   await assert.rejects(() => ops.call("capture_site", { auditId: "audit", runId: "run" }), /PARENT_CAPABILITY_DENIED/);
 });
 
