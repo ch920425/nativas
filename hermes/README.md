@@ -29,6 +29,7 @@ This is a defense-in-depth authorization boundary, not a prompt convention. A re
 - [`skills/nativas-manager/SKILL.md`](skills/nativas-manager/SKILL.md) defines the parent workflow.
 - The three specialist skills define bounded leaf-agent judgments and a shared `SpecialistResultV1` response.
 - [`../docs/hermes/local-runtime.md`](../docs/hermes/local-runtime.md) is the backend-lane setup and test handoff.
+- [`CEREBRAS_RUNTIME.md`](CEREBRAS_RUNTIME.md) records the isolated, low-latency `nativas` profile used by the localhost demo.
 - [`../docs/hermes/discord-operations.md`](../docs/hermes/discord-operations.md) scopes a later, optional Discord observer.
 
 At run creation, the relay reads the manifest, hashes the referenced skill files, persists those versions in the audit record, and supplies the manager instructions plus the bounded specialist catalog in `AuditPacketV1`. The manager copies only the selected specialist's exact instructions and relevant evidence into each child context.

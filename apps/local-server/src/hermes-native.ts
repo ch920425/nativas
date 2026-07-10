@@ -78,7 +78,8 @@ export async function startManagedHermes(logPath: string, port = 8642): Promise<
   const baseUrl = `http://127.0.0.1:${port}`;
   await mkdir(dirname(logPath), { recursive: true });
   const log = createWriteStream(logPath, { flags: "a" });
-  const child = spawn("hermes", ["gateway", "run", "--force", "--accept-hooks"], {
+  const command = process.env.NATIVAS_HERMES_COMMAND ?? "nativas";
+  const child = spawn(command, ["gateway", "run", "--force", "--accept-hooks"], {
     env: {
       ...process.env,
       API_SERVER_ENABLED: "true",

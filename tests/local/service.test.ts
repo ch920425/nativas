@@ -68,6 +68,62 @@ test("mechanical Hermes aliases normalize without accepting invented references"
   assert.ok(parsed.findings.every((finding) => finding.evidenceRefs.length === 1 && finding.evidenceRefs[0].evidenceId === "market_1"));
 });
 
+test("unsupported report enums still fail closed after mechanical normalization", () => {
+  const invalid = JSON.stringify({
+    title: "Audit",
+    executiveSummary: "Summary",
+    findings: Array.from({ length: 3 }, () => ({ componentType: "UNKNOWN_COMPONENT", issueType: "UNKNOWN_ISSUE", severity: "medium", componentRef: { kind: "unknown", value: "copy" }, sourceCopy: "A", currentTargetCopy: "B", proposedTargetCopy: "C", businessImpact: "Impact", rationale: "Reason", confidence: 0.9, evidenceRefs: ["market_1"], kbRefs: ["gold_1"] })),
+  });
+  assert.throws(
+    () => parseFindings(invalid, [{ id: "market_1", url: "https://example.org", title: "Evidence", content: "Evidence" }], [{ id: "gold_1", componentType: "VALUE_PROPOSITION", precedent: "Pattern", rationale: "Reason" }]),
+    /REPORT_INVALID/,
+  );
+});
+
+test("a missing KB citation is repaired only with a component-matched golden reference", () => {
+  const variant = JSON.stringify({
+    title: "Audit",
+    executiveSummary: "Summary",
+    findings: [
+      { componentType: "HERO_HEADLINE", issueType: "CULTURAL_TONE", severity: "high", componentRef: { kind: "TEXT_ANCHOR", value: "Hero" }, sourceCopy: "A", currentTargetCopy: "B", proposedTargetCopy: "C", businessImpact: "Impact", rationale: "Reason", confidence: 0.9, evidenceRefs: [{ packId: "linkup", evidenceId: "market_1" }], kbRefs: ["hero_gold"] },
+      { componentType: "VALUE_PROPOSITION", issueType: "VALUE_PROP_CLARITY", severity: "medium", componentRef: { kind: "TEXT_ANCHOR", value: "Value" }, sourceCopy: "A", currentTargetCopy: "B", proposedTargetCopy: "C", businessImpact: "Impact", rationale: "Reason", confidence: 0.8, evidenceRefs: [{ packId: "linkup", evidenceId: "market_1" }], kbRefs: [] },
+      { componentType: "PRIMARY_CTA", issueType: "CTA_MARKET_FIT", severity: "medium", componentRef: { kind: "TEXT_ANCHOR", value: "CTA" }, sourceCopy: "A", currentTargetCopy: "B", proposedTargetCopy: "C", businessImpact: "Impact", rationale: "Reason", confidence: 0.7, evidenceRefs: [{ packId: "linkup", evidenceId: "market_1" }], kbRefs: ["cta_gold"] },
+    ],
+  });
+  const parsed = parseFindings(
+    variant,
+    [{ id: "market_1", url: "https://example.org", title: "Evidence", content: "Evidence" }],
+    [
+      { id: "hero_gold", componentType: "HERO_HEADLINE", precedent: "Pattern", rationale: "Reason" },
+      { id: "value_gold", componentType: "VALUE_PROPOSITION", precedent: "Pattern", rationale: "Reason" },
+      { id: "cta_gold", componentType: "PRIMARY_CTA", precedent: "Pattern", rationale: "Reason" },
+    ],
+  );
+  assert.deepEqual(parsed.findings[1].kbRefs, ["value_gold"]);
+});
+
+test("feature copy may reuse only the reviewed value-proposition precedent family", () => {
+  const variant = JSON.stringify({
+    title: "Audit",
+    executiveSummary: "Summary",
+    findings: [
+      { componentType: "HERO_HEADLINE", issueType: "CULTURAL_TONE", severity: "high", componentRef: { kind: "TEXT_ANCHOR", value: "Hero" }, sourceCopy: "A", currentTargetCopy: "B", proposedTargetCopy: "C", businessImpact: "Impact", rationale: "Reason", confidence: 0.9, evidenceRefs: [{ packId: "linkup", evidenceId: "market_1" }], kbRefs: ["hero_gold"] },
+      { componentType: "FEATURE_COPY", issueType: "VISUAL_FIT", severity: "medium", componentRef: { kind: "TEXT_ANCHOR", value: "Feature" }, sourceCopy: "A", currentTargetCopy: "B", proposedTargetCopy: "C", businessImpact: "Impact", rationale: "Reason", confidence: 0.8, evidenceRefs: [{ packId: "linkup", evidenceId: "market_1" }], kbRefs: [] },
+      { componentType: "PRIMARY_CTA", issueType: "CTA_MARKET_FIT", severity: "medium", componentRef: { kind: "TEXT_ANCHOR", value: "CTA" }, sourceCopy: "A", currentTargetCopy: "B", proposedTargetCopy: "C", businessImpact: "Impact", rationale: "Reason", confidence: 0.7, evidenceRefs: [{ packId: "linkup", evidenceId: "market_1" }], kbRefs: ["cta_gold"] },
+    ],
+  });
+  const parsed = parseFindings(
+    variant,
+    [{ id: "market_1", url: "https://example.org", title: "Evidence", content: "Evidence" }],
+    [
+      { id: "hero_gold", componentType: "HERO_HEADLINE", precedent: "Pattern", rationale: "Reason" },
+      { id: "value_gold", componentType: "VALUE_PROPOSITION", precedent: "Pattern", rationale: "Reason" },
+      { id: "cta_gold", componentType: "PRIMARY_CTA", precedent: "Pattern", rationale: "Reason" },
+    ],
+  );
+  assert.deepEqual(parsed.findings[1].kbRefs, ["value_gold"]);
+});
+
 test("real local workflow persists capture, Linkup, KB, Hermes events, and exactly three findings", async () => {
   const service = new LocalAuditService({
     statePath: null,
