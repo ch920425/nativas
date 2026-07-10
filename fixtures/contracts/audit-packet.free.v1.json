@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "1.0",
+  "auditId": "aud_fixture_free",
+  "jobType": "FREE",
+  "direction": "KR_TO_US",
+  "sourceLocale": "ko-KR",
+  "targetLocale": "en-US",
+  "limits": { "maxPagePairs": 1, "exactFindingCount": 3, "maxFindings": 3, "maxChildren": 3, "maxDepth": 1, "maxRuntimeSeconds": 240 }
+}

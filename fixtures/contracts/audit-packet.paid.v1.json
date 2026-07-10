@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "1.0",
+  "auditId": "aud_fixture_paid",
+  "jobType": "PAID",
+  "parentAuditId": "aud_fixture_free",
+  "direction": "KR_TO_US",
+  "sourceLocale": "ko-KR",
+  "targetLocale": "en-US",
+  "limits": { "maxPagePairs": 2, "maxFindings": 6, "maxChildren": 3, "maxDepth": 1, "maxRuntimeSeconds": 240 }
+}

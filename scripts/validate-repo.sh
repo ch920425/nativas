@@ -16,6 +16,9 @@ required=(
   docs/contracts/payment-continuation.md
   docs/contracts/report-and-evidence.md
   docs/contracts/runtime-api.md
+  docs/agent-prompts/01-claude-frontend.md
+  docs/agent-prompts/02-codex-backend-hermes.md
+  docs/agent-prompts/03-codex-knowledge-base.md
   docs/validation/acceptance-gates.md
   docs/validation/rehearsal.md
   docs/validation/test-strategy.md
@@ -121,7 +124,9 @@ while IFS=$'\t' read -r link source; do
     exit 1
   fi
 done < <(
-  for source in $(find . -path ./.git -prune -o -type f -name '*.md' -print | sort); do
+  for source in $(find . \
+    \( -path ./.git -o -path '*/node_modules' -o -path '*/dist' -o -path '*/coverage' \) -prune \
+    -o -type f -name '*.md' -print | sort); do
     perl -ne 'while (/\[[^]]+\]\(([^)]+)\)/g) { print "$1\n" }' "$source" |
       while IFS= read -r link; do printf '%s\t%s\n' "$link" "$source"; done
   done
@@ -135,9 +140,13 @@ if rg -n --hidden \
   exit 1
 fi
 
-if find . -path ./.git -prune -o -type f -size 0 -print | grep -q .; then
+if find . \
+  \( -path ./.git -o -path '*/node_modules' -o -path '*/dist' -o -path '*/coverage' \) -prune \
+  -o -type f -size 0 -print | grep -q .; then
   echo "FAIL empty files found" >&2
-  find . -path ./.git -prune -o -type f -size 0 -print >&2
+  find . \
+    \( -path ./.git -o -path '*/node_modules' -o -path '*/dist' -o -path '*/coverage' \) -prune \
+    -o -type f -size 0 -print >&2
   exit 1
 fi
 
