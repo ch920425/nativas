@@ -8,8 +8,11 @@
     "packages/*"
   ],
   "scripts": {
+    "dev:local": "node apps/local-server/src/dev.ts",
+    "dev:api": "node apps/local-server/src/server.ts",
     "test:backend": "node --test tests/backend/*.test.ts",
-    "test": "npm run test:backend && node --test tests/kb/*.test.mjs",
+    "test:local": "node --test tests/local/*.test.ts",
+    "test": "npm run test:backend && npm run test:local && node --test tests/kb/*.test.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "validate": "bash scripts/validate-repo.sh && bash scripts/validate-hermes-spec.sh"
   },

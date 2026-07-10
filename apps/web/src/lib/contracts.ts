@@ -57,6 +57,11 @@ export type AuditReport = {
   sourceLocale: string;
   targetLocale: string;
   screenshotLabels: [string, string];
+  visualEvidence: {
+    mode: "SCREENSHOT" | "HTML_TEXT_SNAPSHOT";
+    source: { headline: string; supportingCopy: string; cta: string };
+    target: { headline: string; supportingCopy: string; cta: string };
+  };
   findings: Finding[];
   limitations: string[];
   liveMarketEvidence: "AVAILABLE" | "DEGRADED";
@@ -79,6 +84,7 @@ export type AuditView = {
   payment?: { paymentId: string; status: PaymentStatus };
   paidAuditId?: string;
   paidHermesRunId?: string;
+  usage?: { inputTokens: number; outputTokens: number; totalTokens: number };
 };
 
 export type IntakeInput = {

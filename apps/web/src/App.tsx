@@ -247,20 +247,20 @@ function Report({ audit, onCheckout }: { audit: AuditView; onCheckout(): Promise
       <section className="pair" aria-label="Paired screenshot evidence">
         <figure className="screen-card source">
           <div className="browser" aria-hidden="true"><i /><i /><i /><span>{report.sourceUrl}</span></div>
-          <div className="screen-content korean" role="img" aria-label={`Captured screenshot: ${report.screenshotLabels[0]}`}>
-            <b>팀의 모든 일이<br />한 곳에서</b>
-            <p>더 빠르게 협업하고,<br />중요한 일에 집중하세요.</p>
-            <button type="button" tabIndex={-1}>무료로 시작하기</button>
+          <div className="screen-content korean" role="img" aria-label={`${report.visualEvidence.mode === "SCREENSHOT" ? "Captured screenshot" : "Captured HTML text snapshot"}: ${report.screenshotLabels[0]}`}>
+            <b>{report.visualEvidence.source.headline}</b>
+            <p>{report.visualEvidence.source.supportingCopy}</p>
+            <button type="button" tabIndex={-1}>{report.visualEvidence.source.cta}</button>
           </div>
           <figcaption>{report.screenshotLabels[0]}</figcaption>
         </figure>
         <div className="pair-arrow" aria-hidden="true">→</div>
         <figure className="screen-card target">
           <div className="browser" aria-hidden="true"><i /><i /><i /><span>{report.targetUrl}</span></div>
-          <div className="screen-content" role="img" aria-label={`Captured screenshot: ${report.screenshotLabels[1]}`}>
-            <b>Give every team one clear place<br />to move work forward.</b>
-            <p>Build better workflows. Stay focused on what matters.</p>
-            <button type="button" tabIndex={-1}>See how your team works better</button>
+          <div className="screen-content" role="img" aria-label={`${report.visualEvidence.mode === "SCREENSHOT" ? "Captured screenshot" : "Captured HTML text snapshot"}: ${report.screenshotLabels[1]}`}>
+            <b>{report.visualEvidence.target.headline}</b>
+            <p>{report.visualEvidence.target.supportingCopy}</p>
+            <button type="button" tabIndex={-1}>{report.visualEvidence.target.cta}</button>
           </div>
           <figcaption>{report.screenshotLabels[1]}</figcaption>
         </figure>

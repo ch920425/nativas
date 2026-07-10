@@ -112,8 +112,8 @@ describe("free report", () => {
       expect(finding).toHaveTextContent(/gold_/);
     }
     expect(screen.getByText("evi_us_b2b_01/web_1")).toBeInTheDocument();
-    expect(screen.getAllByRole("img", { name: /captured screenshot/i })).toHaveLength(2);
-    expect(screen.getByText(/screenshots document the audited state/i)).toBeInTheDocument();
+    expect(screen.getAllByRole("img", { name: /captured html text snapshot/i })).toHaveLength(2);
+    expect(screen.getByText(/html text snapshots document the audited state/i)).toBeInTheDocument();
   });
 });
 

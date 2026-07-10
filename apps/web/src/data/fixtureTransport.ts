@@ -60,10 +60,15 @@ function buildReport(input: IntakeInput, degraded: boolean): AuditReport {
     sourceLocale,
     targetLocale,
     screenshotLabels: sourceLocale === "ko-KR" ? ["Korean source", "US English target"] : ["US English source", "Korean target"],
+    visualEvidence: {
+      mode: "HTML_TEXT_SNAPSHOT",
+      source: { headline: "팀의 모든 일이 한 곳에서", supportingCopy: "더 빠르게 협업하고, 중요한 일에 집중하세요.", cta: "무료로 시작하기" },
+      target: { headline: "All your team's work in one place", supportingCopy: "Build better workflows. Stay focused on what matters.", cta: "Start for free" },
+    },
     liveMarketEvidence: degraded ? "DEGRADED" : "AVAILABLE",
     limitations: [
       "This preview assessed one public homepage locale pair.",
-      "Screenshots document the audited state; nativas.ai does not modify your site.",
+      "HTML text snapshots document the audited state; nativas.ai does not modify your site.",
       ...(degraded
         ? ["Live market research was unavailable for this run; findings rely on the curated golden knowledge base only."]
         : []),

@@ -9,5 +9,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["packages/**/*.ts", "apps/runtime/**/*.ts", "apps/kb-mcp/**/*.d.mts", "convex/**/*.ts", "workers/**/*.ts", "tests/backend/**/*.ts"]
+  "include": ["packages/**/*.ts", "apps/runtime/**/*.ts", "apps/local-server/**/*.ts", "apps/kb-mcp/**/*.d.mts", "convex/**/*.ts", "workers/**/*.ts", "tests/backend/**/*.ts", "tests/local/**/*.ts"]
 }

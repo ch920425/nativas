@@ -1,0 +1,5 @@
+{
+  "name": "@nativas/local-server",
+  "private": true,
+  "type": "module"
+}
