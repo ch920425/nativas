@@ -1,111 +1,400 @@
-import { FormEvent, useMemo, useState } from "react";
-import { fixtureTransport } from "./data/fixtureTransport";
-import type { AuditError, AuditView, Direction, IntakeInput } from "./lib/contracts";
-
-type Screen = "intake" | "run" | "report" | "failed" | "paid";
+import { Dialog } from "@base-ui/react/dialog";
+import { Field } from "@base-ui/react/field";
+import { Fieldset } from "@base-ui/react/fieldset";
+import { Radio } from "@base-ui/react/radio";
+import { RadioGroup } from "@base-ui/react/radio-group";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { createTransport } from "./data/transport";
+import type { AuditTransport, AuditView, Direction, IntakeInput } from "./lib/contracts";
+import { validatePublicHttpUrl } from "./lib/validateUrl";
 
 const directionLabels: Record<Direction, string> = {
   KR_TO_US: "Korea → United States",
   US_TO_KR: "United States → Korea",
 };
 
-export function App() {
-  const [screen, setScreen] = useState<Screen>("intake");
+type Screen = "intake" | "run" | "report" | "paid" | "failed";
+
+function screenFor(audit: AuditView | null): Screen {
+  if (!audit) return "intake";
+  switch (audit.status) {
+    case "SUBMITTED":
+    case "ELIGIBILITY_CHECK":
+    case "FREE_RUNNING":
+      return "run";
+    case "FREE_REPORT":
+      return audit.payment?.status === "SUCCEEDED" && audit.paidAuditId ? "paid" : "report";
+    case "PAID_QUEUED":
+    case "PAID_RUNNING":
+      return "paid";
+    default:
+      return "failed";
+  }
+}
+
+function auditIdFromHash(): string | null {
+  const match = window.location.hash.match(/^#\/audit\/(.+)$/);
+  return match ? match[1] : null;
+}
+
+export function App({ transport = createTransport() }: { transport?: AuditTransport }) {
   const [audit, setAudit] = useState<AuditView | null>(null);
-  const [isFixture, setIsFixture] = useState(true);
-  const [refreshNote, setRefreshNote] = useState<string | null>(null);
+  const [recovered, setRecovered] = useState(false);
+  const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    const id = auditIdFromHash();
+    if (!id) return;
+    let unsubscribe = () => {};
+    transport.get(id).then((view) => {
+      if (!view) { setNotFound(true); return; }
+      setAudit(view);
+      if (view.events.length > 0) setRecovered(true);
+      unsubscribe = transport.subscribe(id, setAudit);
+    });
+    return () => unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function submit(input: IntakeInput) {
-    const created = await fixtureTransport.submit(input);
+    const created = await transport.submit(input);
+    window.location.hash = `#/audit/${created.auditId}`;
+    setRecovered(false);
     setAudit(created);
-    setScreen("run");
-    window.setTimeout(async () => {
-      const complete = await fixtureTransport.get(created.auditId);
-      setAudit({ ...complete, auditId: created.auditId, homepageUrl: input.homepageUrl, direction: input.direction });
-      setScreen("report");
-    }, 1200);
+    transport.subscribe(created.auditId, setAudit);
   }
 
-  async function refresh() {
-    if (!audit) return;
-    const current = await fixtureTransport.get(audit.auditId);
-    setAudit({ ...current, auditId: audit.auditId, homepageUrl: audit.homepageUrl, direction: audit.direction });
-    setRefreshNote("Recovered the latest persisted state. Events are ordered by their server sequence.");
+  function reset() {
+    window.location.hash = "";
+    setAudit(null);
+    setRecovered(false);
+    setNotFound(false);
   }
 
-  async function beginCheckout() {
-    if (!audit) return;
-    await fixtureTransport.createCheckout(audit.auditId);
-    setAudit({ ...audit, status: "PAID_RUNNING", paidAuditId: "aud_paid_demo_01" });
-    setScreen("paid");
-  }
+  const screen = screenFor(audit);
 
-  return <div className="shell">
-    <header className="topbar">
-      <button className="wordmark" onClick={() => setScreen("intake")} aria-label="navitas.ai home">navitas<span>.ai</span></button>
-      <div className="header-side"><span className={isFixture ? "fixture" : "live"}>{isFixture ? "Demo fixtures" : "Live"}</span><button className="text-button" onClick={() => setIsFixture(!isFixture)}>{isFixture ? "Preview mode" : "Live mode"}</button></div>
-    </header>
-    <main>
-      {screen === "intake" && <Intake onSubmit={submit} />}
-      {screen === "run" && audit && <LiveRun audit={audit} onRefresh={refresh} refreshNote={refreshNote} />}
-      {screen === "report" && audit?.report && <Report audit={audit} onCheckout={beginCheckout} />}
-      {screen === "paid" && audit && <PaidStart audit={audit} />}
-      {screen === "failed" && <Failure error={{ code: "CAPTURE_INCOMPLETE", class: "TERMINAL", message: "The public locale pair could not be captured completely." }} onReset={() => setScreen("intake")} />}
-    </main>
-    <footer>Context-aware localization audits for public KR ↔ US websites. No website changes are made.</footer>
-  </div>;
+  return (
+    <div className="shell root">
+      <a href="#main" className="skip-link">Skip to content</a>
+      <header className="topbar">
+        <button className="wordmark" onClick={reset} aria-label="navitas.ai home">navitas<span>.ai</span></button>
+        <div className="header-side">
+          {transport.mode === "FIXTURE" && <span className="fixture">Demo fixtures — not a live audit</span>}
+          {transport.mode === "LIVE" && <span className="live">Live</span>}
+        </div>
+      </header>
+      <main id="main">
+        {notFound && <ErrorPanel title="We couldn't find that audit." body="The link may be stale. Start a new free homepage audit." onReset={reset} />}
+        {!notFound && screen === "intake" && <Intake onSubmit={submit} />}
+        {screen === "run" && audit && (
+          <LiveRun
+            audit={audit}
+            recovered={recovered}
+            onCancel={async () => setAudit(await transport.cancel(audit.auditId))}
+          />
+        )}
+        {screen === "report" && audit?.report && (
+          <Report audit={audit} onCheckout={async () => { await transport.createCheckout(audit.auditId); }} />
+        )}
+        {screen === "paid" && audit && <PaidStart audit={audit} />}
+        {screen === "failed" && audit && <Failure audit={audit} onReset={reset} />}
+      </main>
+      <footer>Context-aware localization audits for public KR ↔ US websites. No website changes are made.</footer>
+    </div>
+  );
 }
 
 function Intake({ onSubmit }: { onSubmit(input: IntakeInput): Promise<void> }) {
-  const [url, setUrl] = useState("https://example.co.kr");
   const [direction, setDirection] = useState<Direction>("KR_TO_US");
-  const [audience, setAudience] = useState("US startup operators");
-  const [goal, setGoal] = useState("Increase qualified demo requests");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  async function handleSubmit(event: FormEvent) {
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const url = String(data.get("homepageUrl") ?? "");
+    const checked = validatePublicHttpUrl(url);
+    if (!checked.ok) { setError(checked.reason); return; }
+    setError("");
+    setSubmitting(true);
     try {
-      const parsed = new URL(url);
-      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new Error("unsupported protocol");
-      setError(""); setSubmitting(true);
-      await onSubmit({ homepageUrl: url, direction, audience, launchGoal: goal });
-    } catch { setError("Enter a complete public http(s) URL. Private, authenticated, and app-only surfaces are out of scope."); }
-    finally { setSubmitting(false); }
+      await onSubmit({
+        homepageUrl: url,
+        direction,
+        audience: String(data.get("audience") ?? ""),
+        launchGoal: String(data.get("launchGoal") ?? ""),
+      });
+    } finally {
+      setSubmitting(false);
+    }
   }
-  return <section className="intake page-grid">
-    <div className="intro"><p className="eyebrow">AI AS AGENCY · KR ↔ US</p><h1>Localize the meaning, not just the words.</h1><p className="lede">navitas.ai sends a Hermes-led agency through one public homepage pair, then returns the three copy decisions most likely to make your launch feel native.</p><div className="promise"><span>01</span><p>Visual context from paired screenshots</p><span>02</span><p>Bounded live market research</p><span>03</span><p>Three clear, evidence-linked changes</p></div></div>
-    <form className="intake-card" onSubmit={handleSubmit}>
-      <div className="form-heading"><span className="step">01 / Intake</span><h2>Start a homepage audit</h2><p>We assess one public homepage locale pair. No login, crawl, or site changes.</p></div>
-      <label>Homepage URL<input aria-label="Homepage URL" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://yourcompany.com" required /></label>
-      <fieldset><legend>Localization direction</legend><div className="segmented">{(Object.keys(directionLabels) as Direction[]).map(value => <button type="button" key={value} aria-pressed={direction === value} onClick={() => setDirection(value)}>{directionLabels[value]}</button>)}</div></fieldset>
-      <label>Who are you trying to reach?<input value={audience} onChange={e => setAudience(e.target.value)} /></label>
-      <label>What should this page achieve?<input value={goal} onChange={e => setGoal(e.target.value)} /></label>
-      {error && <p className="form-error" role="alert">{error}</p>}
-      <button className="primary" disabled={submitting}>{submitting ? "Starting Hermes…" : "Run my free homepage audit"}<span>↗</span></button>
-      <p className="fine-print">Free preview: one locale pair, exactly three findings. A full public-site audit is offered only after you see the report.</p>
-    </form>
-  </section>;
+
+  return (
+    <section className="intake page-grid" aria-labelledby="intake-heading">
+      <div className="intro">
+        <p className="eyebrow">AI AS AGENCY · KR ↔ US</p>
+        <h1 id="intake-heading">Localize the meaning, not just the words.</h1>
+        <p className="lede">navitas.ai sends a Hermes-led agency through one public homepage pair, then returns the three copy decisions most likely to make your launch feel native.</p>
+        <div className="promise">
+          <span>01</span><p>Visual context from paired screenshots</p>
+          <span>02</span><p>Bounded live market research</p>
+          <span>03</span><p>Three clear, evidence-linked changes</p>
+        </div>
+      </div>
+      <form className="intake-card" onSubmit={handleSubmit} noValidate>
+        <div className="form-heading">
+          <span className="step">01 / Intake</span>
+          <h2>Start a homepage audit</h2>
+          <p>We assess one public homepage locale pair. No login, crawl, or site changes.</p>
+        </div>
+        <Field.Root name="homepageUrl" className="field">
+          <Field.Label className="field-label">Homepage URL</Field.Label>
+          <Field.Control required type="url" placeholder="https://yourcompany.com" defaultValue="https://example.co.kr" className="field-input" />
+        </Field.Root>
+        <Fieldset.Root className="field" render={<fieldset />}>
+          <Fieldset.Legend className="field-label">Localization direction</Fieldset.Legend>
+          <RadioGroup value={direction} onValueChange={(value) => setDirection(value as Direction)} className="segmented">
+            {(Object.keys(directionLabels) as Direction[]).map((value) => (
+              <label key={value} className="segmented-option">
+                <Radio.Root value={value} className="segmented-radio">
+                  <Radio.Indicator className="segmented-indicator" />
+                </Radio.Root>
+                <span>{directionLabels[value]}</span>
+              </label>
+            ))}
+          </RadioGroup>
+        </Fieldset.Root>
+        <Field.Root name="audience" className="field">
+          <Field.Label className="field-label">Who are you trying to reach?</Field.Label>
+          <Field.Control defaultValue="US startup operators" className="field-input" />
+        </Field.Root>
+        <Field.Root name="launchGoal" className="field">
+          <Field.Label className="field-label">What should this page achieve?</Field.Label>
+          <Field.Control defaultValue="Increase qualified demo requests" className="field-input" />
+        </Field.Root>
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <button className="primary" disabled={submitting}>{submitting ? "Starting Hermes…" : "Run my free homepage audit"}<span aria-hidden="true">↗</span></button>
+        <p className="fine-print">Free preview: one locale pair, exactly three findings. A deeper audit is offered only after you see the report.</p>
+      </form>
+    </section>
+  );
 }
 
-function LiveRun({ audit, onRefresh, refreshNote }: { audit: AuditView; onRefresh(): Promise<void>; refreshNote: string | null }) {
+function LiveRun({ audit, recovered, onCancel }: { audit: AuditView; recovered: boolean; onCancel(): Promise<void> }) {
   const events = useMemo(() => [...audit.events].sort((a, b) => a.seq - b.seq), [audit.events]);
-  return <section className="run-page narrow"><div className="run-head"><div><p className="eyebrow">HERMES LIVE RUN</p><h1>Reading your page in context.</h1><p>{audit.homepageUrl} · {directionLabels[audit.direction]}</p></div><button className="secondary" onClick={onRefresh}>Refresh persisted state</button></div>
-    {refreshNote && <p className="recovery" role="status">{refreshNote}</p>}
-    <div className="run-layout"><div className="run-card"><div className="run-card-head"><span className="pulse" aria-hidden="true" /> <strong>{audit.status === "FREE_RUNNING" ? "Hermes is working" : "Run state recovered"}</strong><small>{audit.hermesRunId ?? "Run ID pending"}</small></div><ol className="timeline">{events.map(event => <li key={event.eventId}><span className={`event-dot ${event.status.toLowerCase()}`} /><div><p>{event.safeLabel}</p><small>#{event.seq} · {event.actor.replace("_", " ")} {event.toolName ? `· ${event.toolName}` : ""}</small></div><time>{event.occurredAt}</time></li>)}</ol></div>
-    <aside className="truth-card"><p className="eyebrow">What you are seeing</p><h2>Only real system events.</h2><p>We show normalized Hermes and runtime events once they are persisted. We do not guess child progress or invent activity between events.</p><dl><div><dt>Audit</dt><dd>{audit.auditId}</dd></div><div><dt>Evidence</dt><dd>Screenshot + HTML + text + accessibility tree</dd></div></dl></aside></div></section>;
+  return (
+    <section className="run-page narrow" aria-labelledby="run-heading">
+      <div className="run-head">
+        <div>
+          <p className="eyebrow">HERMES LIVE RUN</p>
+          <h1 id="run-heading">Reading your page in context.</h1>
+          <p>{audit.homepageUrl} · {directionLabels[audit.direction]}</p>
+        </div>
+        <button className="secondary" onClick={onCancel}>Cancel this audit</button>
+      </div>
+      {recovered && <p className="recovery" role="status">Recovered the latest persisted state after refresh. Events are ordered by their server sequence.</p>}
+      <div className="run-layout">
+        <div className="run-card">
+          <div className="run-card-head">
+            <span className="pulse" aria-hidden="true" />
+            <strong>{audit.status === "FREE_RUNNING" ? "Hermes is working" : "Preparing the run"}</strong>
+            <small>{audit.hermesRunId ?? "Run ID pending"}</small>
+          </div>
+          {events.length === 0 && <p className="empty-note">Waiting for the first persisted event…</p>}
+          <ol className="timeline" role="log" aria-live="polite" aria-label="Persisted run events">
+            {events.map((event) => (
+              <li key={event.eventId}>
+                <span className={`event-dot ${event.status.toLowerCase()}`} aria-hidden="true" />
+                <div>
+                  <p>{event.safeLabel}</p>
+                  <small>#{event.seq} · {event.actor.replace("_", " ").toLowerCase()}{event.toolName ? ` · ${event.toolName}` : ""}</small>
+                </div>
+                <time dateTime={event.occurredAt}>{event.occurredAt.slice(11, 19)}</time>
+              </li>
+            ))}
+          </ol>
+        </div>
+        <aside className="truth-card" aria-label="What you are seeing">
+          <p className="eyebrow">What you are seeing</p>
+          <h2>Only real system events.</h2>
+          <p>We show normalized Hermes and runtime events once they are persisted, ordered by server sequence. We do not guess child progress or invent activity between events.</p>
+          <dl>
+            <div><dt>Audit</dt><dd>{audit.auditId}</dd></div>
+            <div><dt>Evidence per page</dt><dd>Screenshot · HTML · text · accessibility tree</dd></div>
+          </dl>
+        </aside>
+      </div>
+    </section>
+  );
 }
 
 function Report({ audit, onCheckout }: { audit: AuditView; onCheckout(): Promise<void> }) {
   const report = audit.report!;
-  return <section className="report-page"><div className="report-hero"><p className="eyebrow">FREE HOMEPAGE AUDIT · COMPLETE</p><h1>{report.title}</h1><p className="lede">{report.executiveSummary}</p><div className="report-meta"><span>{report.sourceLocale} → {report.targetLocale}</span><span>{audit.hermesRunId}</span><span className={report.liveMarketEvidence === "AVAILABLE" ? "live" : "fixture"}>{report.liveMarketEvidence === "AVAILABLE" ? "Live market evidence" : "KB-only evidence"}</span></div></div>
-    <section className="pair" aria-label="Paired screenshot evidence"><div className="screen-card source"><div className="browser"><i/><i/><i/><span>{report.sourceUrl}</span></div><div className="screen-content korean"><b>팀의 모든 일이<br/>한 곳에서</b><p>더 빠르게 협업하고,<br/>중요한 일에 집중하세요.</p><button>무료로 시작하기</button></div><p>{report.screenshotLabels[0]}</p></div><div className="pair-arrow" aria-hidden="true">→</div><div className="screen-card target"><div className="browser"><i/><i/><i/><span>{report.targetUrl}</span></div><div className="screen-content"><b>Give every team one clear place<br/>to move work forward.</b><p>Build better workflows. Stay focused on what matters.</p><button>See how your team works better</button></div><p>{report.screenshotLabels[1]}</p></div></section>
-    <section className="findings"><div className="findings-head"><div><p className="eyebrow">THE THREE HIGHEST-LEVERAGE FIXES</p><h2>What to change, and why it earns its place.</h2></div><p>Every suggestion is tied to the captured page and bounded source material.</p></div>{report.findings.map(finding => <article className="finding" key={finding.findingId}><div className="rank">0{finding.rank}</div><div className="finding-main"><div className="finding-label"><span>{finding.componentType.replaceAll("_", " ")}</span><span className={`severity ${finding.severity.toLowerCase()}`}>{finding.severity}</span></div><div className="copy-compare"><p><small>Current</small>{finding.currentTargetCopy}</p><p><small>Recommend</small>{finding.proposedTargetCopy}</p></div><p className="impact"><strong>Why this matters:</strong> {finding.businessImpact}</p></div><aside><p>{finding.rationale}</p><div className="refs"><span>{Math.round(finding.confidence * 100)}% confidence</span><span>{finding.evidenceRefs[0].packId}/{finding.evidenceRefs[0].evidenceId}</span><span>{finding.kbRefs[0]}</span></div></aside></article>)}</section>
-    <section className="upgrade"><div><p className="eyebrow">GO DEEPER WHEN YOU’RE READY</p><h2>Audit the rest of your public site with the same context.</h2><p>We’ll start a new, capped Hermes run for two additional content surfaces—each compared as one source/target locale pair. Your free findings become its starting context.</p></div><button className="primary" onClick={onCheckout}>Unlock two more surfaces <span>↗</span></button></section>
-    <section className="limitations"><h2>Scope and evidence</h2>{report.limitations.map(item => <p key={item}>• {item}</p>)}</section>
-  </section>;
+  const degraded = report.liveMarketEvidence === "DEGRADED";
+  const paymentPending = audit.payment?.status === "PENDING_CONFIRMATION";
+  return (
+    <section className="report-page" aria-labelledby="report-heading">
+      <div className="report-hero">
+        <p className="eyebrow">FREE HOMEPAGE AUDIT · COMPLETE</p>
+        <h1 id="report-heading">{report.title}</h1>
+        <p className="lede">{report.executiveSummary}</p>
+        <div className="report-meta">
+          <span>{report.sourceLocale} → {report.targetLocale}</span>
+          <span>{audit.hermesRunId}</span>
+          <span className={degraded ? "fixture" : "live"}>{degraded ? "KB-only evidence — live research was unavailable" : "Live market evidence"}</span>
+        </div>
+      </div>
+      <section className="pair" aria-label="Paired screenshot evidence">
+        <figure className="screen-card source">
+          <div className="browser" aria-hidden="true"><i /><i /><i /><span>{report.sourceUrl}</span></div>
+          <div className="screen-content korean" role="img" aria-label={`Captured screenshot: ${report.screenshotLabels[0]}`}>
+            <b>팀의 모든 일이<br />한 곳에서</b>
+            <p>더 빠르게 협업하고,<br />중요한 일에 집중하세요.</p>
+            <button type="button" tabIndex={-1}>무료로 시작하기</button>
+          </div>
+          <figcaption>{report.screenshotLabels[0]}</figcaption>
+        </figure>
+        <div className="pair-arrow" aria-hidden="true">→</div>
+        <figure className="screen-card target">
+          <div className="browser" aria-hidden="true"><i /><i /><i /><span>{report.targetUrl}</span></div>
+          <div className="screen-content" role="img" aria-label={`Captured screenshot: ${report.screenshotLabels[1]}`}>
+            <b>Give every team one clear place<br />to move work forward.</b>
+            <p>Build better workflows. Stay focused on what matters.</p>
+            <button type="button" tabIndex={-1}>See how your team works better</button>
+          </div>
+          <figcaption>{report.screenshotLabels[1]}</figcaption>
+        </figure>
+      </section>
+      <section className="findings" aria-label="The three findings">
+        <div className="findings-head">
+          <div>
+            <p className="eyebrow">THE THREE HIGHEST-LEVERAGE FIXES</p>
+            <h2>What to change, and why it earns its place.</h2>
+          </div>
+          <p>Every suggestion is tied to the captured page and bounded source material.</p>
+        </div>
+        {report.findings.map((finding) => (
+          <article className="finding" key={finding.findingId} aria-label={`Finding ${finding.rank}`}>
+            <div className="rank" aria-hidden="true">0{finding.rank}</div>
+            <div className="finding-main">
+              <div className="finding-label">
+                <span>{finding.componentType.replaceAll("_", " ")}</span>
+                <span className={`severity ${finding.severity.toLowerCase()}`}>{finding.severity}</span>
+                <span className="component-ref">{finding.componentRef.value}</span>
+              </div>
+              <div className="copy-compare">
+                <p><small>Current</small>{finding.currentTargetCopy}</p>
+                <p><small>Recommend</small>{finding.proposedTargetCopy}</p>
+              </div>
+              <p className="impact"><strong>Why this matters:</strong> {finding.businessImpact}</p>
+            </div>
+            <aside>
+              <p>{finding.rationale}</p>
+              <div className="refs">
+                <span>{Math.round(finding.confidence * 100)}% confidence</span>
+                {finding.evidenceRefs.map((ref) => <span key={ref.evidenceId}>{ref.packId}/{ref.evidenceId}</span>)}
+                {finding.kbRefs.map((ref) => <span key={ref}>{ref}</span>)}
+              </div>
+            </aside>
+          </article>
+        ))}
+      </section>
+      <section className="upgrade" aria-label="Paid continuation">
+        <div>
+          <p className="eyebrow">GO DEEPER WHEN YOU'RE READY</p>
+          <h2>Audit two more content surfaces with the same context.</h2>
+          <p>We'll start one new, capped Hermes run for up to two additional public content surfaces—each compared as one source/target locale pair. Your free findings become its starting context.</p>
+        </div>
+        {paymentPending ? (
+          <p className="recovery" role="status">Payment received by Dodo — waiting for the signed webhook to confirm before starting your paid run. This page updates automatically.</p>
+        ) : (
+          <CheckoutDialog onConfirm={onCheckout} />
+        )}
+      </section>
+      <section className="limitations" aria-label="Scope and evidence">
+        <h2>Scope and evidence</h2>
+        {report.limitations.map((item) => <p key={item}>• {item}</p>)}
+      </section>
+    </section>
+  );
 }
 
-function PaidStart({ audit }: { audit: AuditView }) { return <section className="paid-page narrow"><p className="eyebrow">PAYMENT VERIFIED</p><h1>Your deeper audit has started.</h1><p className="lede">A new Hermes run is now assessing up to two additional public content surfaces, each as a source/target locale pair.</p><div className="paid-state"><span className="pulse"/><div><strong>Paid run queued and observed</strong><p>{audit.paidAuditId} · linked to {audit.auditId}</p></div><span className="tag">{audit.status}</span></div><p className="fine-print">P0 ends here: payment created one linked paid audit and its Hermes run is active. A finished paid report is the next delivery.</p></section> }
+function CheckoutDialog({ onConfirm }: { onConfirm(): Promise<void> }) {
+  const [open, setOpen] = useState(false);
+  const [launching, setLaunching] = useState(false);
+  return (
+    <Dialog.Root open={open} onOpenChange={setOpen}>
+      <Dialog.Trigger className="primary">Unlock two more surfaces <span aria-hidden="true">↗</span></Dialog.Trigger>
+      <Dialog.Portal>
+        <Dialog.Backdrop className="dialog-backdrop" />
+        <Dialog.Popup className="dialog-popup">
+          <Dialog.Title className="dialog-title">Start the paid continuation</Dialog.Title>
+          <Dialog.Description className="dialog-description">
+            One-time Dodo checkout. After the signed webhook verifies your payment, exactly one new Hermes run
+            starts automatically, covering up to two additional public content surfaces (each one source/target
+            locale pair, up to six findings). No subscription, no site changes.
+          </Dialog.Description>
+          <div className="dialog-actions">
+            <Dialog.Close className="secondary">Not now</Dialog.Close>
+            <button
+              className="primary"
+              disabled={launching}
+              onClick={async () => {
+                setLaunching(true);
+                try { await onConfirm(); setOpen(false); } finally { setLaunching(false); }
+              }}
+            >
+              {launching ? "Opening Dodo checkout…" : "Continue to Dodo checkout"}
+            </button>
+          </div>
+        </Dialog.Popup>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
 
-function Failure({ error, onReset }: { error: AuditError; onReset(): void }) { return <section className="failure narrow"><p className="eyebrow">AUDIT COULDN’T CONTINUE</p><h1>We stopped rather than make up a result.</h1><p className="lede">{error.message}</p><code>{error.code}</code><button className="primary" onClick={onReset}>Try another public homepage</button></section> }
+function PaidStart({ audit }: { audit: AuditView }) {
+  const running = Boolean(audit.paidHermesRunId);
+  return (
+    <section className="paid-page narrow" aria-labelledby="paid-heading">
+      <p className="eyebrow">PAYMENT VERIFIED</p>
+      <h1 id="paid-heading">{running ? "Your deeper audit is running." : "Your deeper audit is queued."}</h1>
+      <p className="lede">One new Hermes run {running ? "is now assessing" : "will assess"} up to two additional public content surfaces, each as a source/target locale pair.</p>
+      <div className="paid-state">
+        <span className="pulse" aria-hidden="true" />
+        <div>
+          <strong>{running ? "Paid run queued and observed running" : "Paid audit created — waiting for the run to be observed"}</strong>
+          <p>{audit.paidAuditId} · linked to {audit.auditId}{audit.paidHermesRunId ? ` · ${audit.paidHermesRunId}` : ""}</p>
+        </div>
+        <span className="tag">{running ? "PAID_RUNNING" : "PAID_QUEUED"}</span>
+      </div>
+      <p className="fine-print">P0 ends here: your verified payment created exactly one linked paid audit and its Hermes run {running ? "is active" : "is starting"}. The finished paid report is the next delivery.</p>
+    </section>
+  );
+}
+
+function Failure({ audit, onReset }: { audit: AuditView; onReset(): void }) {
+  const cancelled = audit.status === "CANCELLED";
+  const error = audit.error ?? { code: "HERMES_RUN_FAILED" as const, class: "TERMINAL" as const, message: "The run stopped before publishing a report." };
+  return (
+    <section className="failure narrow" aria-labelledby="failure-heading">
+      <p className="eyebrow">{cancelled ? "AUDIT CANCELLED" : "AUDIT COULDN'T CONTINUE"}</p>
+      <h1 id="failure-heading">{cancelled ? "Stopped at your request." : "We stopped rather than make up a result."}</h1>
+      <p className="lede">{error.message}</p>
+      <code>{error.code}</code>
+      <div>
+        <button className="primary" onClick={onReset}>Try another public homepage</button>
+      </div>
+    </section>
+  );
+}
+
+function ErrorPanel({ title, body, onReset }: { title: string; body: string; onReset(): void }) {
+  return (
+    <section className="failure narrow">
+      <h1>{title}</h1>
+      <p className="lede">{body}</p>
+      <button className="primary" onClick={onReset}>Start over</button>
+    </section>
+  );
+}
