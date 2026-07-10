@@ -8,7 +8,7 @@
 {
   "freeAuditId": "aud_free_...",
   "paymentId": "pay_...",
-  "product": "navitas_paid_two_surface_audit_v1",
+  "product": "nativas_paid_two_surface_audit_v1",
   "contractVersion": "1.0"
 }
 ```

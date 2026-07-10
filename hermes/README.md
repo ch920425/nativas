@@ -1,32 +1,32 @@
 # Hermes specification assets
 
-This directory is a checked-in runtime specification and implementation handoff. It does not contain the navitas.ai relay, MCP server, or product code.
+This directory is a checked-in runtime specification and implementation handoff. It does not contain the nativas.ai relay, MCP server, or product code.
 
 ## Runtime shape
 
-navitas.ai runs one dedicated Hermes profile named `navitas` and one parent manager for each audit. The manager owns the customer-facing job and uses one native `delegate_task` batch containing two or three flat `leaf` specialists:
+nativas.ai runs one dedicated Hermes profile named `nativas` and one parent manager for each audit. The manager owns the customer-facing job and uses one native `delegate_task` batch containing two or three flat `leaf` specialists:
 
-1. `navitas-visual-context` diagnoses hierarchy, component role, and visual-fit problems.
-2. `navitas-market-copy` proposes market-native value proposition and CTA language from supplied evidence.
-3. `navitas-evidence-qa` challenges meaning drift, unsupported claims, and broken references.
+1. `nativas-visual-context` diagnoses hierarchy, component role, and visual-fit problems.
+2. `nativas-market-copy` proposes market-native value proposition and CTA language from supplied evidence.
+3. `nativas-evidence-qa` challenges meaning drift, unsupported claims, and broken references.
 
 The manager alone captures pages, requests live market research, selects knowledge-base evidence, reconciles specialist results, and submits the report. It publishes exactly three findings for the free audit.
 
-Hermes 0.18.2 does not expose a per-child toolset field in the model-facing `delegate_task` schema. Children therefore inherit the parent's allowlisted `navitas_kb` and `navitas_ops` toolsets. The product enforces the parent-only write boundary with an unguessable, run-scoped `parentCapability`:
+Hermes 0.18.2 does not expose a per-child toolset field in the model-facing `delegate_task` schema. Children therefore inherit the parent's allowlisted `nativas_kb` and `nativas_ops` toolsets. The product enforces the parent-only write boundary with an unguessable, run-scoped `parentCapability`:
 
 - The relay creates and binds the capability to one `auditId` and Hermes `runId`.
 - Only the parent AuditPacket contains the plaintext capability.
 - Child context must never contain, quote, summarize, or request it.
-- Every `navitas_ops` call requires it; the MCP server rejects missing, wrong, expired, or cross-run capabilities.
+- Every `nativas_ops` call requires it; the MCP server rejects missing, wrong, expired, or cross-run capabilities.
 - The gbrain MCP is independently restricted to `search`, `query`, and `get_page`.
 
-This is a defense-in-depth authorization boundary, not a prompt convention. A required integration test proves a child cannot call any `navitas_ops` tool.
+This is a defense-in-depth authorization boundary, not a prompt convention. A required integration test proves a child cannot call any `nativas_ops` tool.
 
 ## Files
 
 - [`config.example.yaml`](config.example.yaml) is the safe Hermes profile shape. It contains paths and placeholders only.
 - [`skills/manifest.json`](skills/manifest.json) versions the manager and specialist instructions.
-- [`skills/navitas-manager/SKILL.md`](skills/navitas-manager/SKILL.md) defines the parent workflow.
+- [`skills/nativas-manager/SKILL.md`](skills/nativas-manager/SKILL.md) defines the parent workflow.
 - The three specialist skills define bounded leaf-agent judgments and a shared `SpecialistResultV1` response.
 - [`../docs/hermes/local-runtime.md`](../docs/hermes/local-runtime.md) is the backend-lane setup and test handoff.
 - [`../docs/hermes/discord-operations.md`](../docs/hermes/discord-operations.md) scopes a later, optional Discord observer.

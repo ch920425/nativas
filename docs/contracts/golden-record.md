@@ -1,6 +1,6 @@
 # Golden localization record contract
 
-`GoldenRecordV1` is the canonical unit stored in the navitas.ai localization
+`GoldenRecordV1` is the canonical unit stored in the nativas.ai localization
 knowledge base. It gives Hermes a reviewed precedent or anti-pattern with
 enough product, copy, and visual context to support a recommendation. It is an
 evidence aid, not an instruction to copy another company's language.

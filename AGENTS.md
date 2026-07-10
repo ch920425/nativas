@@ -1,4 +1,4 @@
-# navitas.ai agent contract
+# nativas.ai agent contract
 
 ## Mission
 

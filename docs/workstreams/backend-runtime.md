@@ -12,7 +12,7 @@ Deliver real autonomous execution while Hermes remains the sole semantic orchest
 4. Implement relay claim/reserve/start/bind/heartbeat, crash-boundary session reconciliation, Runs SSE normalization/status reconciliation, and stop. An uncertain create outcome fails closed; it never blind-retries.
 5. Implement URL-safe Browser Run snapshot→private R2→CaptureManifest.
 6. Consume Lane 3's isolated read-only gbrain MCP and implement one-attempt Linkup `standard` adapter.
-7. Install `navitas-audit-v1`; expose only `capture_site`, `search_market_evidence`, and `submit_report` plus native delegation/read-only KB tools.
+7. Install `nativas-audit-v1`; expose only `capture_site`, `search_market_evidence`, and `submit_report` plus native delegation/read-only KB tools.
 8. Implement deterministic report validation/publication.
 9. Implement Dodo checkout, raw-body signature verification, deduplication, and atomic paid-audit creation.
 

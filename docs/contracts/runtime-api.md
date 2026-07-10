@@ -34,7 +34,7 @@ The relay sends this bounded input to one Hermes parent Run. Paid continuation u
   "versions": {
     "contract": "1.0",
     "prompt": "audit-prompt-v1",
-    "skill": "navitas-manager-v1",
+    "skill": "nativas-manager-v1",
     "kb": "golden-six-v1"
   },
   "specialistCatalog": [
@@ -47,7 +47,7 @@ The relay sends this bounded input to one Hermes parent Run. Paid continuation u
 }
 ```
 
-`parentCapability` is generated for this run, delivered only to the parent instructions, required by every `navitas_ops` call, and never written to Convex events, reports, logs, child contexts, or fixtures.
+`parentCapability` is generated for this run, delivered only to the parent instructions, required by every `nativas_ops` call, and never written to Convex events, reports, logs, child contexts, or fixtures.
 
 For a paid audit, `limits.maxPagePairs` is `2`—two additional content surfaces, each represented by one source/target locale pair—`exactFindingCount` is omitted, `maxFindings` is `6`, and `priorContext` contains only:
 
@@ -103,7 +103,7 @@ The relay deduplicates by `(auditId,eventId)`. Convex assigns `seq`; the fronten
 
 ## Product MCP tools
 
-The `navitas_ops` server exposes exactly three critical-path tools.
+The `nativas_ops` server exposes exactly three critical-path tools.
 
 ### `capture_site`
 
@@ -174,7 +174,7 @@ Expected retrieval request:
 - limit 3 records per request
 - return stable record ID, title, direction, component type, concise precedent/anti-pattern, source URL, screenshot artifact reference, and retrieval score/mode
 
-Hermes MCP names are normalized explicitly: `mcp_navitas_ops_capture_site -> capture_site`, `mcp_navitas_ops_search_market_evidence -> search_market_evidence`, `mcp_navitas_ops_submit_report -> submit_report`, and `mcp_navitas_kb_search/query/get_page -> gbrain_search/query/get_page`. Startup compares the actual `/v1/toolsets` response with this exact allowlist and fails closed on any extra toolset or tool.
+Hermes MCP names are normalized explicitly: `mcp_nativas_ops_capture_site -> capture_site`, `mcp_nativas_ops_search_market_evidence -> search_market_evidence`, `mcp_nativas_ops_submit_report -> submit_report`, and `mcp_nativas_kb_search/query/get_page -> gbrain_search/query/get_page`. Startup compares the actual `/v1/toolsets` response with this exact allowlist and fails closed on any extra toolset or tool.
 
 ## Cloudflare capture Worker
 

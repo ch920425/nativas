@@ -33,6 +33,7 @@ runtime/
 
 # Agent-local state
 .omx/
+.omc/
 .claude/settings.local.json
 
 # Scratch artifacts

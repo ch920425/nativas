@@ -1,6 +1,6 @@
 # Optional Discord operations observer
 
-Discord is a post-P0 operator surface, not part of the customer workflow and not required for hackathon qualification. The navitas.ai website plus Convex remain the source of truth for audit status, artifacts, payments, reports, and recovery.
+Discord is a post-P0 operator surface, not part of the customer workflow and not required for hackathon qualification. The nativas.ai website plus Convex remain the source of truth for audit status, artifacts, payments, reports, and recovery.
 
 ## Intended role
 
@@ -8,9 +8,9 @@ A later bot may mirror sanitized Convex events into a private operator server so
 
 Recommended private channels:
 
-- `#navitas-runs`: one start and terminal summary per audit.
-- `#navitas-alerts`: typed failures, uncertain starts, invalid webhooks, or contract rejection.
-- `#navitas-metrics`: daily aggregate counts after the demo, with no page content.
+- `#nativas-runs`: one start and terminal summary per audit.
+- `#nativas-alerts`: typed failures, uncertain starts, invalid webhooks, or contract rejection.
+- `#nativas-metrics`: daily aggregate counts after the demo, with no page content.
 
 Thread per audit only when volume justifies it. Use a truncated public audit reference, never raw URLs when they may contain sensitive query data.
 

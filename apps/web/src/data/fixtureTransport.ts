@@ -5,7 +5,7 @@ const fixture: AuditView = {
   status: "FREE_REPORT",
   direction: "KR_TO_US",
   homepageUrl: "https://example.co.kr",
-  hermesRunId: "run_navitas_4f7b",
+  hermesRunId: "run_nativas_4f7b",
   degraded: false,
   events: [
     { schemaVersion: "1.0", auditId: "aud_demo_krus_01", eventId: "1", seq: 1, type: "RUN_CREATED", actor: "RUNTIME", status: "QUEUED", safeLabel: "Hermes audit run created", occurredAt: "09:41:04" },
@@ -25,7 +25,7 @@ const fixture: AuditView = {
     targetLocale: "en-US",
     screenshotLabels: ["Korean source", "US English target"],
     liveMarketEvidence: "AVAILABLE",
-    limitations: ["This preview assessed one public homepage locale pair.", "Screenshots document the audited state; navitas.ai does not modify your site."],
+    limitations: ["This preview assessed one public homepage locale pair.", "Screenshots document the audited state; nativas.ai does not modify your site."],
     findings: [
       { findingId: "f_1", rank: 1, componentType: "HERO_HEADLINE", severity: "HIGH", sourceCopy: "팀의 모든 일이 한 곳에서", currentTargetCopy: "All your team's work in one place", proposedTargetCopy: "Give every team one clear place to move work forward.", businessImpact: "A result-led statement gives an unfamiliar buyer a faster reason to care.", rationale: "The revised line keeps the unified-workspace promise but introduces a concrete business outcome before the category claim.", confidence: 0.91, evidenceRefs: [{ packId: "evi_us_b2b_01", evidenceId: "web_1" }], kbRefs: ["gold_kr_us_headline_01"] },
       { findingId: "f_2", rank: 2, componentType: "PRIMARY_CTA", severity: "HIGH", sourceCopy: "무료로 시작하기", currentTargetCopy: "Start for free", proposedTargetCopy: "See how your team works better", businessImpact: "The CTA better matches an evaluation-stage visitor who needs value before commitment.", rationale: "A low-commitment, outcome-oriented CTA is clearer beside a broad hero promise and retains the original invitation.", confidence: 0.88, evidenceRefs: [{ packId: "evi_us_b2b_01", evidenceId: "web_2" }], kbRefs: ["gold_kr_us_cta_01"] },

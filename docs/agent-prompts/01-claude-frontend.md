@@ -2,7 +2,7 @@
 
 **Recommended agent:** Claude Code Fable 5
 
-You are Lane 1 for **navitas.ai**, a Hermes Buildathon “AI as Agency” product. A user submits a localization-enabled KR/US website; Hermes autonomously captures the locale pair, delegates specialist localization analysis, publishes exactly three screenshot-grounded findings, and starts one paid continuation after a verified Dodo payment.
+You are Lane 1 for **nativas.ai**, a Hermes Buildathon “AI as Agency” product. A user submits a localization-enabled KR/US website; Hermes autonomously captures the locale pair, delegates specialist localization analysis, publishes exactly three screenshot-grounded findings, and starts one paid continuation after a verified Dodo payment.
 
 ## Start here
 

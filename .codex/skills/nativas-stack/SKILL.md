@@ -1,9 +1,9 @@
 ---
-name: navitas-stack
-description: Use when implementing, debugging, testing, or deploying navitas.ai integrations across Hermes Agent, Convex, Cloudflare, Linkup, Dodo Payments, or the project-isolated gbrain knowledge base.
+name: nativas-stack
+description: Use when implementing, debugging, testing, or deploying nativas.ai integrations across Hermes Agent, Convex, Cloudflare, Linkup, Dodo Payments, or the project-isolated gbrain knowledge base.
 ---
 
-# navitas.ai stack
+# nativas.ai stack
 
 Use this repo-local skill for service integration work. Keep it small: load only the relevant sections of [service-contracts.md](references/service-contracts.md), then implement the narrowest end-to-end slice that proves the product contract.
 
@@ -14,7 +14,7 @@ Use this repo-local skill for service integration work. Keep it small: load only
 - **Linkup is the only web-search provider in this repository. Never use Exa.** Do not add Exa packages, MCPs, environment variables, fallbacks, or documentation.
 - Do not use Hermes' generic web-search backends or Cloudflare Web Search for product research. Route live market search through the narrow Linkup tool.
 - Cloudflare Browser Run may capture the user-submitted site and discovered same-site locale URLs. That is evidence acquisition, not general web search.
-- gbrain must use a project-specific, absolute `GBRAIN_HOME`; never read or write the user's personal brain for navitas.ai.
+- gbrain must use a project-specific, absolute `GBRAIN_HOME`; never read or write the user's personal brain for nativas.ai.
 - Keep Hermes loopback-only. Browser clients must communicate through the application backend, never directly with the Hermes gateway.
 - Never commit credentials, `.env*` values, webhook secrets, bearer tokens, customer page contents, or unredacted traces.
 

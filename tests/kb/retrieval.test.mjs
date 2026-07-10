@@ -32,8 +32,8 @@ test("get_page is read-only and unknown IDs fail closed", async () => {
 });
 
 test("import preparation is reproducible and yields six markdown pages plus a manifest", async () => {
-  const first = await mkdtemp(path.join(os.tmpdir(), "navitas-kb-a-"));
-  const second = await mkdtemp(path.join(os.tmpdir(), "navitas-kb-b-"));
+  const first = await mkdtemp(path.join(os.tmpdir(), "nativas-kb-a-"));
+  const second = await mkdtemp(path.join(os.tmpdir(), "nativas-kb-b-"));
   for (const out of [first, second]) {
     const result = spawnSync(process.execPath, ["scripts/kb/build-import.mjs", "--out", out], { cwd: root, encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr);

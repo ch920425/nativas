@@ -106,7 +106,7 @@ For `FREE`, `findings.length` is exactly 3 and all findings reference the homepa
   "componentType": "PRIMARY_CTA",
   "sourceCopy": "지금 시작하기",
   "currentTargetCopy": "Start now",
-  "proposedTargetCopy": "See navitas.ai on your site",
+  "proposedTargetCopy": "See nativas.ai on your site",
   "issueType": "CTA_MARKET_FIT",
   "severity": "HIGH",
   "businessImpact": "The existing CTA asks for commitment before explaining the result.",

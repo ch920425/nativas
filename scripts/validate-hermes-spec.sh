@@ -7,10 +7,10 @@ required=(
   "hermes/README.md"
   "hermes/config.example.yaml"
   "hermes/skills/manifest.json"
-  "hermes/skills/navitas-manager/SKILL.md"
-  "hermes/skills/navitas-visual-context/SKILL.md"
-  "hermes/skills/navitas-market-copy/SKILL.md"
-  "hermes/skills/navitas-evidence-qa/SKILL.md"
+  "hermes/skills/nativas-manager/SKILL.md"
+  "hermes/skills/nativas-visual-context/SKILL.md"
+  "hermes/skills/nativas-market-copy/SKILL.md"
+  "hermes/skills/nativas-evidence-qa/SKILL.md"
   "docs/hermes/local-runtime.md"
   "docs/hermes/discord-operations.md"
 )
@@ -38,16 +38,16 @@ manifest_path = root / "hermes/skills/manifest.json"
 manifest = json.loads(manifest_path.read_text())
 
 assert manifest["schemaVersion"] == "1.0"
-assert manifest["profile"] == "navitas"
+assert manifest["profile"] == "nativas"
 assert manifest["runtimeCompatibility"]["hermesVersion"] == "0.18.2"
 assert manifest["runtimeCompatibility"]["delegationMode"] == "native-flat-leaf"
 assert manifest["hashPolicy"] == "sha256-file-bytes-at-run-creation"
 
 expected = {
-    "navitas-manager": "hermes/skills/navitas-manager/SKILL.md",
-    "navitas-visual-context": "hermes/skills/navitas-visual-context/SKILL.md",
-    "navitas-market-copy": "hermes/skills/navitas-market-copy/SKILL.md",
-    "navitas-evidence-qa": "hermes/skills/navitas-evidence-qa/SKILL.md",
+    "nativas-manager": "hermes/skills/nativas-manager/SKILL.md",
+    "nativas-visual-context": "hermes/skills/nativas-visual-context/SKILL.md",
+    "nativas-market-copy": "hermes/skills/nativas-market-copy/SKILL.md",
+    "nativas-evidence-qa": "hermes/skills/nativas-evidence-qa/SKILL.md",
 }
 entries = [manifest["manager"], *manifest["specialists"]]
 actual = {entry["id"]: entry["path"] for entry in entries}
@@ -62,25 +62,25 @@ config = (root / "hermes/config.example.yaml").read_text()
 required_config = [
     r"platform_toolsets:\s*\n\s+api_server:",
     r"- delegation\b",
-    r"- navitas_kb\b",
-    r"- navitas_ops\b",
+    r"- nativas_kb\b",
+    r"- nativas_ops\b",
     r"max_concurrent_children:\s*3\b",
     r"max_spawn_depth:\s*1\b",
     r"orchestrator_enabled:\s*false\b",
     r"subagent_auto_approve:\s*false\b",
     r"inherit_mcp_toolsets:\s*false\b",
-    r"GBRAIN_HOME:\s*/ABSOLUTE/PATH/TO/NAVITAS_RUNTIME/gbrain",
+    r"GBRAIN_HOME:\s*/ABSOLUTE/PATH/TO/NATIVAS_RUNTIME/gbrain",
 ]
 for pattern in required_config:
     assert re.search(pattern, config), f"missing safe Hermes config invariant: {pattern}"
 
 kb_tools = re.search(
-    r"navitas_kb:.*?tools:\s*\n\s+include:\s*\n(?P<body>(?:\s+- [^\n]+\n)+)",
+    r"nativas_kb:.*?tools:\s*\n\s+include:\s*\n(?P<body>(?:\s+- [^\n]+\n)+)",
     config,
     re.S,
 )
 ops_tools = re.search(
-    r"navitas_ops:.*?tools:\s*\n\s+include:\s*\n(?P<body>(?:\s+- [^\n]+\n)+)",
+    r"nativas_ops:.*?tools:\s*\n\s+include:\s*\n(?P<body>(?:\s+- [^\n]+\n)+)",
     config,
     re.S,
 )
@@ -93,7 +93,7 @@ assert parse(ops_tools.group("body")) == [
     "submit_report",
 ]
 
-manager = (root / "hermes/skills/navitas-manager/SKILL.md").read_text()
+manager = (root / "hermes/skills/nativas-manager/SKILL.md").read_text()
 assert "parentCapability" in manager
 assert "delegate_task(tasks=[...])" in manager
 assert 'role: "leaf"' in manager
@@ -102,7 +102,7 @@ assert "exactly three" in manager
 for relative in expected.values():
     text = (root / relative).read_text()
     assert "version: 1.0.0" in text
-    if relative != expected["navitas-manager"]:
+    if relative != expected["nativas-manager"]:
         assert "SpecialistResultV1" in text
         assert "Never call it, guess a `parentCapability`, or ask for one" in text
 

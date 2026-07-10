@@ -2,7 +2,7 @@
 
 **Recommended agent:** Codex (frontier coding model)
 
-You are Lane 3 for **navitas.ai**. Your job is to give Hermes a small, high-trust, fast reference memory for context-aware KR ↔ US homepage localization—without touching the user’s personal gbrain or pretending synthetic examples are researched truth.
+You are Lane 3 for **nativas.ai**. Your job is to give Hermes a small, high-trust, fast reference memory for context-aware KR ↔ US homepage localization—without touching the user’s personal gbrain or pretending synthetic examples are researched truth.
 
 ## Start here
 

@@ -4,7 +4,7 @@ This document specifies the backend lane's local Hermes setup and verification. 
 
 ## Decision
 
-Run the hackathon critical path on a dedicated local Hermes profile named `navitas`. Use one parent manager per audit plus a single native batch of two or three flat leaf children. Hermes Cloud is optional after the P0 demo; Discord is not a runtime dependency.
+Run the hackathon critical path on a dedicated local Hermes profile named `nativas`. Use one parent manager per audit plus a single native batch of two or three flat leaf children. Hermes Cloud is optional after the P0 demo; Discord is not a runtime dependency.
 
 The browser never connects to Hermes. A thin backend relay calls the loopback Runs API, normalizes safe events into Convex, and leaves all semantic planning and localization judgment to Hermes.
 
@@ -16,8 +16,8 @@ Verified target: Hermes CLI `0.18.2 (2026.7.7.2)`.
 hermes --version
 hermes doctor
 hermes profile list
-hermes profile create navitas --no-skills \
-  --description "navitas.ai isolated localization agency runtime"
+hermes profile create nativas --no-skills \
+  --description "nativas.ai isolated localization agency runtime"
 ```
 
 Creating the profile must not mutate the user's personal/default Hermes home. Apply `hermes/config.example.yaml` to the generated profile using local absolute paths. Keep all provider credentials, `API_SERVER_KEY`, and service tokens outside git.
@@ -42,27 +42,27 @@ Hermes loads no mutable skill text from Discord, a customer page, or live search
 `platform_toolsets.api_server` must contain only:
 
 - `delegation`
-- `navitas_kb`
-- `navitas_ops`
+- `nativas_kb`
+- `nativas_ops`
 
 The KB MCP exposes only `search`, `query`, and `get_page`. The ops MCP exposes only `capture_site`, `search_market_evidence`, and `submit_report`. Generic shell, browser, web, file-write, mutable gbrain, and unrelated MCP toolsets are excluded from the API server.
 
 The expected Hermes wire names are:
 
-- `mcp_navitas_kb_search`
-- `mcp_navitas_kb_query`
-- `mcp_navitas_kb_get_page`
-- `mcp_navitas_ops_capture_site`
-- `mcp_navitas_ops_search_market_evidence`
-- `mcp_navitas_ops_submit_report`
+- `mcp_nativas_kb_search`
+- `mcp_nativas_kb_query`
+- `mcp_nativas_kb_get_page`
+- `mcp_nativas_ops_capture_site`
+- `mcp_nativas_ops_search_market_evidence`
+- `mcp_nativas_ops_submit_report`
 
 At process startup, compare `/v1/toolsets` and `/v1/capabilities` with this allowlist. Refuse audit claims when a required tool is absent or an unexpected tool/toolset is exposed.
 
 ## Parent-only capability
 
-Hermes 0.18.2's model-facing `delegate_task` input supports `goal`, `context`, and `role`, but not per-child toolsets. Native children inherit the parent's exposed MCP toolsets. Therefore every `navitas_ops` input schema includes a required `parentCapability`.
+Hermes 0.18.2's model-facing `delegate_task` input supports `goal`, `context`, and `role`, but not per-child toolsets. Native children inherit the parent's exposed MCP toolsets. Therefore every `nativas_ops` input schema includes a required `parentCapability`.
 
-The relay generates at least 128 bits of cryptographically random data, stores only a hash, and binds it to `auditId`, `runId`, purpose `NAVITAS_PARENT_OPS`, and expiry. The plaintext value appears only in the parent AuditPacket. The MCP server compares the hash in constant time and rejects a missing, invalid, expired, reused-across-run, or cross-audit capability before any side effect.
+The relay generates at least 128 bits of cryptographically random data, stores only a hash, and binds it to `auditId`, `runId`, purpose `NATIVAS_PARENT_OPS`, and expiry. The plaintext value appears only in the parent AuditPacket. The MCP server compares the hash in constant time and rejects a missing, invalid, expired, reused-across-run, or cross-audit capability before any side effect.
 
 Child packets never contain the capability or the full parent packet. A child seeing an ops tool name is expected and harmless only when the server-side authorization test passes.
 
@@ -88,7 +88,7 @@ API_SERVER_KEY=<provided-outside-git>
 Start and inspect:
 
 ```bash
-navitas gateway run
+nativas gateway run
 curl -fsS http://127.0.0.1:8642/health
 curl -fsS http://127.0.0.1:8642/v1/capabilities \
   -H "Authorization: Bearer $API_SERVER_KEY"
@@ -145,8 +145,8 @@ The browser's live screen is the operator-visible audit surface. A complete trac
 ```bash
 scripts/validate-hermes-spec.sh
 hermes doctor
-navitas mcp test navitas_kb
-navitas mcp test navitas_ops
+nativas mcp test nativas_kb
+nativas mcp test nativas_ops
 ```
 
 Then prove with a real fixture audit:

@@ -26,8 +26,8 @@ required=(
   docs/workstreams/backend-runtime.md
   docs/workstreams/integration-plan.md
   docs/workstreams/knowledge-base.md
-  .codex/skills/navitas-stack/SKILL.md
-  .codex/skills/navitas-stack/references/service-contracts.md
+  .codex/skills/nativas-stack/SKILL.md
+  .codex/skills/nativas-stack/references/service-contracts.md
 )
 
 for path in "${required[@]}"; do
@@ -72,8 +72,8 @@ rg -q 'Exa' AGENTS.md .codex/skills || {
   exit 1
 }
 
-if rg -n --hidden --glob '!.git/**' --glob '!scripts/validate-repo.sh' 'nativas|Nativas' .; then
-  echo "FAIL stale nativas naming found; canonical product name is navitas.ai" >&2
+if rg -n --hidden --glob '!.git/**' --glob '!scripts/validate-repo.sh' 'navitas|Navitas|NAVITAS' .; then
+  echo "FAIL stale navitas naming found; canonical product name is nativas.ai" >&2
   exit 1
 fi
 

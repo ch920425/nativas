@@ -1,4 +1,4 @@
-# navitas.ai service contracts
+# nativas.ai service contracts
 
 Read only the sections relevant to the current task. These are operational boundaries, not a second PRD.
 
@@ -29,7 +29,7 @@ Verified on 2026-07-10; rerun the version command instead of treating this table
 | Surface | Verified command | Local result | Remaining gate |
 | --- | --- | --- | --- |
 | Hermes | `hermes --version` | `0.18.2 (2026.7.7.2)`, upstream `4281151a` | Profile migration and model-provider authentication |
-| Convex | `convex --version` | `1.42.1` | Link/create the navitas.ai development deployment |
+| Convex | `convex --version` | `1.42.1` | Link/create the nativas.ai development deployment |
 | Wrangler | `wrangler --version` | `4.110.0` | Create/verify Pages, Worker, Browser binding, and R2 resources |
 | Linkup | `linkup --version` | `1.0.2` | Configure `LINKUP_API_KEY` outside git |
 | Dodo | `dodo --version` | `3.4.0` | Verify test product and webhook endpoint |
@@ -51,7 +51,7 @@ hermes status
 hermes setup --portal          # interactive provider/auth gate; run only when needed
 hermes gateway run
 hermes mcp list
-hermes mcp test navitas_kb      # after the repo-specific server is configured
+hermes mcp test nativas_kb      # after the repo-specific server is configured
 
 curl -fsS http://127.0.0.1:8642/health
 curl -fsS http://127.0.0.1:8642/v1/capabilities \
@@ -82,17 +82,17 @@ Recommended Hermes MCP boundaries:
 
 ```yaml
 mcp_servers:
-  navitas_kb:
+  nativas_kb:
     command: gbrain
     args: [serve]
     env:
-      GBRAIN_HOME: /absolute/path/to/navitas-runtime/gbrain
-  navitas_ops:
+      GBRAIN_HOME: /absolute/path/to/nativas-runtime/gbrain
+  nativas_ops:
     command: node
-    args: [/absolute/path/to/navitas/apps/relay/dist/mcp.js]
+    args: [/absolute/path/to/nativas/apps/relay/dist/mcp.js]
 ```
 
-Use `platform_toolsets.api_server: [delegation, navitas_kb, navitas_ops]`, filter gbrain to `search`, `query`, and `get_page`, and filter `navitas_ops` to `capture_site`, `search_market_evidence`, and `submit_report`. Each ops call requires an unguessable per-run parent capability omitted from child contexts. Treat `submit_report` as an idempotent write; never mark mixed read/write MCP tools as safe for parallel execution.
+Use `platform_toolsets.api_server: [delegation, nativas_kb, nativas_ops]`, filter gbrain to `search`, `query`, and `get_page`, and filter `nativas_ops` to `capture_site`, `search_market_evidence`, and `submit_report`. Each ops call requires an unguessable per-run parent capability omitted from child contexts. Treat `submit_report` as an idempotent write; never mark mixed read/write MCP tools as safe for parallel execution.
 
 Official references:
 

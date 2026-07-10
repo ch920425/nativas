@@ -1,4 +1,4 @@
-navitas.ai
+nativas.ai
 ==========
 
 The autonomous localization agency for Korean companies entering the US and US companies entering Korea.
@@ -7,11 +7,11 @@ THE PROBLEM
 
 International websites often fail even when their translations are technically correct. Copy is translated without the current page, component, product journey, visual hierarchy, or destination-market context. Headlines feel generic, CTAs miss local buying conventions, terminology drifts, and credible companies can appear foreign or untrustworthy.
 
-navitas.ai starts with the public website a company already has. Submit one localization-enabled homepage, choose KR to US or US to KR, and receive a visual, market-aware audit with prioritized copy recommendations, business rationale, and cited evidence.
+nativas.ai starts with the public website a company already has. Submit one localization-enabled homepage, choose KR to US or US to KR, and receive a visual, market-aware audit with prioritized copy recommendations, business rationale, and cited evidence.
 
-WHY NAVITAS.AI
+WHY NATIVAS.AI
 
-navitas.ai is not a translation widget. It operates like a compact autonomous agency:
+nativas.ai is not a translation widget. It operates like a compact autonomous agency:
 
 - It sees the rendered source and target pages, not isolated strings.
 - It grounds decisions in current market evidence and reviewed localization precedents.
@@ -24,7 +24,7 @@ Over time, completed engagements produce provenance-linked candidate knowledge. 
 HOW IT WORKS
 
 1. Submit a public homepage and localization direction.
-2. navitas.ai verifies and captures the Korean and English surfaces.
+2. nativas.ai verifies and captures the Korean and English surfaces.
 3. Hermes Agent plans the audit, retrieves relevant evidence, delegates specialist work, reconciles it, and publishes the report.
 4. The report pairs the real page visuals with three high-impact localization findings and improved copy.
 5. A verified payment automatically launches a capped deeper audit using the customer context already gathered.

@@ -42,7 +42,7 @@ export function App() {
 
   return <div className="shell">
     <header className="topbar">
-      <button className="wordmark" onClick={() => setScreen("intake")} aria-label="navitas.ai home">navitas<span>.ai</span></button>
+      <button className="wordmark" onClick={() => setScreen("intake")} aria-label="nativas.ai home">nativas<span>.ai</span></button>
       <div className="header-side"><span className={isFixture ? "fixture" : "live"}>{isFixture ? "Demo fixtures" : "Live"}</span><button className="text-button" onClick={() => setIsFixture(!isFixture)}>{isFixture ? "Preview mode" : "Live mode"}</button></div>
     </header>
     <main>
@@ -74,7 +74,7 @@ function Intake({ onSubmit }: { onSubmit(input: IntakeInput): Promise<void> }) {
     finally { setSubmitting(false); }
   }
   return <section className="intake page-grid">
-    <div className="intro"><p className="eyebrow">AI AS AGENCY · KR ↔ US</p><h1>Localize the meaning, not just the words.</h1><p className="lede">navitas.ai sends a Hermes-led agency through one public homepage pair, then returns the three copy decisions most likely to make your launch feel native.</p><div className="promise"><span>01</span><p>Visual context from paired screenshots</p><span>02</span><p>Bounded live market research</p><span>03</span><p>Three clear, evidence-linked changes</p></div></div>
+    <div className="intro"><p className="eyebrow">AI AS AGENCY · KR ↔ US</p><h1>Localize the meaning, not just the words.</h1><p className="lede">nativas.ai sends a Hermes-led agency through one public homepage pair, then returns the three copy decisions most likely to make your launch feel native.</p><div className="promise"><span>01</span><p>Visual context from paired screenshots</p><span>02</span><p>Bounded live market research</p><span>03</span><p>Three clear, evidence-linked changes</p></div></div>
     <form className="intake-card" onSubmit={handleSubmit}>
       <div className="form-heading"><span className="step">01 / Intake</span><h2>Start a homepage audit</h2><p>We assess one public homepage locale pair. No login, crawl, or site changes.</p></div>
       <label>Homepage URL<input aria-label="Homepage URL" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://yourcompany.com" required /></label>

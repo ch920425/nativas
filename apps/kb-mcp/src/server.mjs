@@ -5,7 +5,7 @@ import { getPage, loadCorpus, retrieve } from "./retrieval.mjs";
 const tools = [
   {
     name: "search",
-    description: "Read-only bounded lookup of navitas.ai golden localization records. Returns at most three records.",
+    description: "Read-only bounded lookup of nativas.ai golden localization records. Returns at most three records.",
     inputSchema: { type: "object", required: ["direction"], properties: { direction: { enum: ["KR_TO_US", "US_TO_KR"] }, componentType: { enum: ["HERO_HEADLINE", "VALUE_PROPOSITION", "PRIMARY_CTA", "TRUST_COPY"] }, query: { type: "string" }, industry: { type: "string" }, audience: { type: "string" }, issueHypothesis: { type: "string" }, limit: { type: "integer", minimum: 1, maximum: 3 } } }
   },
   {
@@ -35,7 +35,7 @@ for await (const line of input) {
 }
 
 async function handle(request) {
-  if (request.method === "initialize") return { protocolVersion: request.params?.protocolVersion ?? "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "navitas-kb", version: "1.0.0" } };
+  if (request.method === "initialize") return { protocolVersion: request.params?.protocolVersion ?? "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "nativas-kb", version: "1.0.0" } };
   if (request.method === "notifications/initialized") return {};
   if (request.method === "tools/list") return { tools };
   if (request.method !== "tools/call") throw new Error(`unsupported method ${request.method}`);

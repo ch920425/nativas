@@ -1,5 +1,5 @@
 {
-  "name": "@navitas/web",
+  "name": "@nativas/web",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -10,7 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@navitas/contracts": "workspace:*",
+    "@nativas/contracts": "workspace:*",
     "@vitejs/plugin-react": "4.7.0",
     "vite": "6.3.5",
     "react": "19.1.0",

@@ -1,11 +1,11 @@
-# Specification-only example for the dedicated `navitas` Hermes profile.
+# Specification-only example for the dedicated `nativas` Hermes profile.
 # Replace absolute-path placeholders locally. Keep credentials outside git.
 
 platform_toolsets:
   api_server:
     - delegation
-    - navitas_kb
-    - navitas_ops
+    - nativas_kb
+    - nativas_ops
 
 delegation:
   max_iterations: 2
@@ -16,12 +16,12 @@ delegation:
   inherit_mcp_toolsets: false
 
 mcp_servers:
-  navitas_kb:
+  nativas_kb:
     command: gbrain
     args:
       - serve
     env:
-      GBRAIN_HOME: /ABSOLUTE/PATH/TO/NAVITAS_RUNTIME/gbrain
+      GBRAIN_HOME: /ABSOLUTE/PATH/TO/NATIVAS_RUNTIME/gbrain
     tools:
       include:
         - search
@@ -30,10 +30,10 @@ mcp_servers:
       resources: false
       prompts: false
 
-  navitas_ops:
+  nativas_ops:
     command: node
     args:
-      - /ABSOLUTE/PATH/TO/NAVITAS/apps/relay/dist/mcp.js
+      - /ABSOLUTE/PATH/TO/NATIVAS/apps/relay/dist/mcp.js
     tools:
       include:
         - capture_site

@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { App } from "./App";
 
-describe("navitas intake", () => {
+describe("nativas intake", () => {
   it("requires a public URL before beginning the truthful run", async () => {
     const user = userEvent.setup(); render(<App />);
     await user.clear(screen.getByLabelText("Homepage URL"));

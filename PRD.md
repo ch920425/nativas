@@ -1,4 +1,4 @@
-# navitas.ai — Hermes-powered localization agency for KR ↔ US launches
+# nativas.ai — Hermes-powered localization agency for KR ↔ US launches
 
 **Buildathon track:** AI as Agency
 **Status:** build-ready, ruthlessly scoped 3.5-hour MVP
@@ -11,7 +11,7 @@ Build an autonomous localization agency, not a translation widget, generic crawl
 The judged MVP has one narrow end-to-end path:
 
 1. A user submits one public homepage and selects `KR → US` or `US → KR`.
-2. navitas.ai verifies a public source/target locale pair.
+2. nativas.ai verifies a public source/target locale pair.
 3. Cloudflare Browser Run captures both pages and stores visual evidence in R2.
 4. A Hermes parent run retrieves one curated gbrain packet and one fresh Linkup market-evidence packet.
 5. Hermes chooses and delegates up to three bounded specialist tasks, reconciles them, and publishes exactly three high-impact findings.
@@ -33,11 +33,11 @@ The source workflow identifies recurring failures:
 - Copy no longer fits the component or visual hierarchy.
 - Requests arrive late, and no one performs a holistic consistency pass.
 
-These failures are most expensive on the homepage, where unfamiliar phrasing can erode trust before a prospect understands the product. Existing localization platforms assume string catalogs, engineering integrations, and an established localization team. navitas.ai starts from the public website every company already has and delivers the first agency engagement without a human operator.
+These failures are most expensive on the homepage, where unfamiliar phrasing can erode trust before a prospect understands the product. Existing localization platforms assume string catalogs, engineering integrations, and an established localization team. nativas.ai starts from the public website every company already has and delivers the first agency engagement without a human operator.
 
-## 3. Why navitas.ai is differentiated
+## 3. Why nativas.ai is differentiated
 
-navitas.ai does not ask, “How should this sentence be translated?” It asks:
+nativas.ai does not ask, “How should this sentence be translated?” It asks:
 
 > Given this company, audience, component, visual hierarchy, product claim, destination market, and comparable evidence, what copy would feel native while preserving meaning?
 
@@ -209,8 +209,8 @@ Hermes is the only semantic orchestrator.
 
 ### Parent-run procedure
 
-1. The relay creates an audit in Convex and starts one Hermes parent Run with `session_id=auditId` through the dedicated `navitas` Hermes profile.
-2. The parent loads the versioned `navitas-manager` skill and reads the bounded AuditPacket plus the repo-versioned specialist catalog.
+1. The relay creates an audit in Convex and starts one Hermes parent Run with `session_id=auditId` through the dedicated `nativas` Hermes profile.
+2. The parent loads the versioned `nativas-manager` skill and reads the bounded AuditPacket plus the repo-versioned specialist catalog.
 3. The parent invokes capture once, retrieves one small gbrain packet, and makes at most one Linkup `standard` request.
 4. The parent chooses up to three leaf specialists and issues one flat `delegate_task` batch. Each child receives only its selected specialist instructions and bounded shared evidence; it never receives the per-run parent capability required by operational MCP writes and does not crawl independently.
 5. The parent reconciles their outputs and may issue one single-task repair only when its QA finds an actual failure.
@@ -223,7 +223,7 @@ Delegation depth is one, child concurrency is at most three, and the build uses 
 ```text
 Cloudflare Pages UI  ↔  Convex audits/events/reports/payments
                               ↕ outbound claim + event mirror
-                       navitas-relay
+                       nativas-relay
                               ↕ loopback Runs API / SSE
                        Hermes gateway
                               ↕ Hermes-selected tools
@@ -246,7 +246,7 @@ Hermes runs as one long-lived local process for the hackathon. Standard Cloudfla
 
 ## 9. Knowledge design
 
-Create a new navitas.ai gbrain isolated from the user’s personal brain. Use PGLite and local stdio MCP so there is no public knowledge server or storage migration on the critical path.
+Create a new nativas.ai gbrain isolated from the user’s personal brain. Use PGLite and local stdio MCP so there is no public knowledge server or storage migration on the critical path.
 
 The six-record seed contains three reviewed examples per direction:
 

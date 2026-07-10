@@ -3,9 +3,9 @@ import type {
   AuditError as ContractAuditError,
   AuditStatus,
   Direction,
-} from "@navitas/contracts";
+} from "@nativas/contracts";
 
-export type { AuditStatus, Direction } from "@navitas/contracts";
+export type { AuditStatus, Direction } from "@nativas/contracts";
 export type AuditError = ContractAuditError;
 
 export type AgentEvent = ContractAgentEvent & { seq: number };

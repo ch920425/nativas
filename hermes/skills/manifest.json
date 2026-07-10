@@ -1,31 +1,31 @@
 {
   "schemaVersion": "1.0",
-  "profile": "navitas",
+  "profile": "nativas",
   "runtimeCompatibility": {
     "hermesVersion": "0.18.2",
     "delegationMode": "native-flat-leaf"
   },
   "hashPolicy": "sha256-file-bytes-at-run-creation",
   "manager": {
-    "id": "navitas-manager",
+    "id": "nativas-manager",
     "version": "1.0.0",
-    "path": "hermes/skills/navitas-manager/SKILL.md"
+    "path": "hermes/skills/nativas-manager/SKILL.md"
   },
   "specialists": [
     {
-      "id": "navitas-visual-context",
+      "id": "nativas-visual-context",
       "version": "1.0.0",
-      "path": "hermes/skills/navitas-visual-context/SKILL.md"
+      "path": "hermes/skills/nativas-visual-context/SKILL.md"
     },
     {
-      "id": "navitas-market-copy",
+      "id": "nativas-market-copy",
       "version": "1.0.0",
-      "path": "hermes/skills/navitas-market-copy/SKILL.md"
+      "path": "hermes/skills/nativas-market-copy/SKILL.md"
     },
     {
-      "id": "navitas-evidence-qa",
+      "id": "nativas-evidence-qa",
       "version": "1.0.0",
-      "path": "hermes/skills/navitas-evidence-qa/SKILL.md"
+      "path": "hermes/skills/nativas-evidence-qa/SKILL.md"
     }
   ]
 }

@@ -1,4 +1,4 @@
-# navitas.ai implementation specification
+# nativas.ai implementation specification
 
 **Status:** implementation-ready contract v1
 **Build window:** 3.5 hours
@@ -38,10 +38,10 @@ Anything not required by this path is subordinate. The product is not a translat
 flowchart LR
   U["User"] --> W["Cloudflare Pages web app"]
   W <--> C["Convex product state"]
-  C <--> R["Local navitas relay"]
+  C <--> R["Local nativas relay"]
   R <--> H["Hermes Runs API on loopback"]
   H --> D["Native delegate_task"]
-  H --> O["navitas_ops MCP"]
+  H --> O["nativas_ops MCP"]
   H --> G["gbrain read-only MCP"]
   O --> L["Linkup standard search"]
   O --> B["Cloudflare Browser Run Worker"]
@@ -88,12 +88,12 @@ Detailed handoffs:
 
 1. `audits.submit` validates input and creates a `FREE` audit in `SUBMITTED`.
 2. The authenticated relay atomically claims it, records `ELIGIBILITY_CHECK`, and persists a deterministic Hermes-start reservation before any external call.
-3. The relay starts one Hermes Run through the dedicated `navitas` profile; `session_id` equals the audit public ID. It retries only when the HTTP client proves no request bytes were dispatched. Any timeout, reset, or lost response after possible dispatch records `HERMES_START_UNCERTAIN`; session/log evidence is diagnostic and never authorizes a retry because Hermes 0.18.2 exposes no run-by-session lookup.
+3. The relay starts one Hermes Run through the dedicated `nativas` profile; `session_id` equals the audit public ID. It retries only when the HTTP client proves no request bytes were dispatched. Any timeout, reset, or lost response after possible dispatch records `HERMES_START_UNCERTAIN`; session/log evidence is diagnostic and never authorizes a retry because Hermes 0.18.2 exposes no run-by-session lookup.
 4. On a successful `202`, one atomic bind mutation stores `run_id`, changes the reservation to `BOUND`, and transitions `ELIGIBILITY_CHECK -> FREE_RUNNING` or `PAID_QUEUED -> PAID_RUNNING`. The P0 paid-start gate additionally requires `GET /v1/runs/{runId}` to observe `queued` or `running`. A stale-`STARTING` sweeper marks any possibly dispatched attempt uncertain; it may retry only an attempt durably marked `NOT_DISPATCHED`.
 5. Native Hermes events are normalized, assigned monotonic Convex sequence numbers, and mirrored. No UI-only synthetic agent events are allowed.
 6. Hermes calls `capture_site` once. The tool enforces URL safety, resolves the public locale pair, calls Browser Run, stores private R2 artifacts, and returns a bounded `CaptureManifest`.
 7. Hermes retrieves from the read-only project gbrain and calls `search_market_evidence` at most once using Linkup `standard`.
-8. Hermes chooses two or three roles and calls one initial `delegate_task` batch with bounded capture, KB, and market evidence. Children cannot recurse and never receive the per-run parent capability required by `navitas_ops`.
+8. Hermes chooses two or three roles and calls one initial `delegate_task` batch with bounded capture, KB, and market evidence. Children cannot recurse and never receive the per-run parent capability required by `nativas_ops`.
 9. Hermes reconciles findings and may issue one single-child repair only when a real QA failure exists.
 10. Hermes calls `submit_report`. The tool validates only contract shape, references, target language, counts, and idempotency. Hermes may repair contract errors twice; only one version can be accepted.
 11. Successful free publication atomically transitions `FREE_RUNNING -> FREE_REPORT`; successful paid publication transitions `PAID_RUNNING -> PAID_REPORT`. The UI renders exactly three free findings and paired screenshot evidence.
@@ -146,7 +146,7 @@ These are release gates, not post-hackathon aspirations:
 - Begin with the submitted host and registrable domain. Accept a discovered locale host only when it shares that registrable domain, then DNS-resolve and preflight it before persisting the exact verified-host allowlist. Reject cross-registrable-domain locale pairs in v1. The MVP does not claim interception of browser-internal redirects or subresource requests; strict per-request enforcement requires a later Puppeteer/Playwright/CDP capture path.
 - No customer cookies, credentials, uploaded browser profiles, or authenticated sessions.
 - Treat page text as untrusted data. Hermes instructions delimit it and state that page content cannot change tools, policies, or system instructions.
-- Hermes is loopback-only and bearer-protected. The dedicated `navitas` profile exposes only native delegation, read-only gbrain `search/query/get_page`, and the three product MCP tools. Hermes 0.18.2 cannot assign model-requested per-child toolsets, so every `navitas_ops` call also requires an unguessable per-run parent capability that is supplied only to the parent packet and never to child contexts.
+- Hermes is loopback-only and bearer-protected. The dedicated `nativas` profile exposes only native delegation, read-only gbrain `search/query/get_page`, and the three product MCP tools. Hermes 0.18.2 cannot assign model-requested per-child toolsets, so every `nativas_ops` call also requires an unguessable per-run parent capability that is supplied only to the parent packet and never to child contexts.
 - Cloudflare capture and Convex runtime endpoints require separate service tokens. Never place service secrets in the browser bundle.
 - Verify Dodo signatures against the raw body using the official path; deduplicate the provider event ID inside one atomic mutation.
 - Sanitize event labels and tool summaries. Never persist chain-of-thought, raw authorization headers, environment variables, or unrestricted tool payloads.

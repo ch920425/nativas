@@ -1,4 +1,4 @@
-# navitas.ai golden knowledge base
+# nativas.ai golden knowledge base
 
 This directory defines the deterministic, project-isolated localization-reference corpus used by the demo. The canonical six records live in [`fixtures/contracts/golden-record.v1.json`](../fixtures/contracts/golden-record.v1.json), which is versioned as `golden-six-v1`.
 
@@ -12,7 +12,7 @@ This directory defines the deterministic, project-isolated localization-referenc
 ## Local preparation
 
 ```bash
-export GBRAIN_HOME="$PWD/.runtime/gbrain-navitas"
+export GBRAIN_HOME="$PWD/.runtime/gbrain-nativas"
 node scripts/kb/build-import.mjs --out "$PWD/.runtime/gbrain-import"
 node scripts/kb/prepare-gbrain.mjs --home "$GBRAIN_HOME" --import "$PWD/.runtime/gbrain-import"
 ```
@@ -27,4 +27,4 @@ The MCP server exposes only `search`, `query`, and `get_page`; all are read-only
 node apps/kb-mcp/src/server.mjs
 ```
 
-The runtime must configure this process as the `navitas_kb` MCP server and permit only these three tools. It must never expose gbrain's write/import/delete/embed tools to Hermes.
+The runtime must configure this process as the `nativas_kb` MCP server and permit only these three tools. It must never expose gbrain's write/import/delete/embed tools to Hermes.
