@@ -9,7 +9,7 @@ import { createLiveTransport } from "./liveTransport";
 export function createTransport(): AuditTransport {
   const mode = import.meta.env?.VITE_TRANSPORT ?? "fixture";
   if (mode === "live") {
-    return createLiveTransport(import.meta.env.VITE_API_BASE_URL ?? "http://127.0.0.1:8787");
+    return createLiveTransport(import.meta.env.VITE_API_BASE_URL ?? window.location.origin);
   }
   return createFixtureTransport();
 }

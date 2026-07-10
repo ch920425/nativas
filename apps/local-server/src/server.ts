@@ -21,6 +21,10 @@ export async function startLocalApi(port = Number(process.env.NATIVAS_API_PORT ?
 }
 
 async function route(service: LocalAuditService, request: IncomingMessage, response: ServerResponse) {
+  const edgeToken = process.env.NATIVAS_EDGE_TOKEN;
+  if (edgeToken && request.headers["x-nativas-edge-token"] !== edgeToken) {
+    return send(response, 401, { error: "edge authorization required" });
+  }
   response.setHeader("access-control-allow-origin", "http://127.0.0.1:5173");
   response.setHeader("access-control-allow-headers", "content-type");
   response.setHeader("access-control-allow-methods", "GET,POST,OPTIONS");
