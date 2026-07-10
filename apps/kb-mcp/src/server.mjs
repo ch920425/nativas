@@ -6,12 +6,12 @@ const tools = [
   {
     name: "search",
     description: "Read-only bounded lookup of nativas.ai golden localization records. Returns at most three records.",
-    inputSchema: { type: "object", required: ["direction"], properties: { direction: { enum: ["KR_TO_US", "US_TO_KR"] }, componentType: { enum: ["HERO_HEADLINE", "VALUE_PROPOSITION", "PRIMARY_CTA", "TRUST_COPY"] }, query: { type: "string" }, industry: { type: "string" }, audience: { type: "string" }, issueHypothesis: { type: "string" }, limit: { type: "integer", minimum: 1, maximum: 3 } } }
+    inputSchema: { type: "object", required: ["direction"], properties: { direction: { enum: ["KR_TO_US", "US_TO_KR"] }, sourceLocale: { enum: ["ko-KR", "en-US"] }, targetLocale: { enum: ["ko-KR", "en-US"] }, componentType: { enum: ["HERO_HEADLINE", "VALUE_PROPOSITION", "PRIMARY_CTA", "TRUST_COPY"] }, query: { type: "string" }, industry: { type: "string" }, audience: { type: "string" }, issueHypothesis: { type: "string" }, limit: { type: "integer", minimum: 1, maximum: 3 } } }
   },
   {
     name: "query",
     description: "Read-only semantic-style alias for bounded golden-record lookup; deterministic keyword ranking in demo mode.",
-    inputSchema: { type: "object", required: ["direction"], properties: { direction: { enum: ["KR_TO_US", "US_TO_KR"] }, componentType: { enum: ["HERO_HEADLINE", "VALUE_PROPOSITION", "PRIMARY_CTA", "TRUST_COPY"] }, query: { type: "string" }, industry: { type: "string" }, audience: { type: "string" }, issueHypothesis: { type: "string" }, limit: { type: "integer", minimum: 1, maximum: 3 } } }
+    inputSchema: { type: "object", required: ["direction"], properties: { direction: { enum: ["KR_TO_US", "US_TO_KR"] }, sourceLocale: { enum: ["ko-KR", "en-US"] }, targetLocale: { enum: ["ko-KR", "en-US"] }, componentType: { enum: ["HERO_HEADLINE", "VALUE_PROPOSITION", "PRIMARY_CTA", "TRUST_COPY"] }, query: { type: "string" }, industry: { type: "string" }, audience: { type: "string" }, issueHypothesis: { type: "string" }, limit: { type: "integer", minimum: 1, maximum: 3 } } }
   },
   {
     name: "get_page",

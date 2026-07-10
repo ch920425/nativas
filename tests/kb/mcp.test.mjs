@@ -5,20 +5,24 @@ import test from "node:test";
 
 const root = path.resolve(import.meta.dirname, "../..");
 
-test("MCP exposes only read-only bounded tools", async () => {
+test("MCP exposes only read-only bounded tools and enforces a three-record ceiling", async () => {
   const child = spawn(process.execPath, ["apps/kb-mcp/src/server.mjs"], { cwd: root, stdio: ["pipe", "pipe", "pipe"] });
   const messages = [];
   child.stdout.setEncoding("utf8");
   child.stdout.on("data", (chunk) => messages.push(...chunk.trim().split("\n").filter(Boolean).map(JSON.parse)));
   child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" })}\n`);
   child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "search", arguments: { direction: "KR_TO_US", componentType: "PRIMARY_CTA", query: "finance CTA", limit: 99 } } })}\n`);
-  await waitFor(() => messages.length === 2);
+  child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "query", arguments: { direction: "US_TO_KR", componentType: "TRUST_COPY", query: "cancellation", sourceLocale: "en-US", targetLocale: "ko-KR" } } })}\n`);
+  child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "delete", arguments: {} } })}\n`);
+  await waitFor(() => messages.length === 4);
   child.kill();
   assert.deepEqual(messages[0].result.tools.map((tool) => tool.name), ["search", "query", "get_page"]);
   const result = messages[1].result.structuredContent;
   assert.equal(result.mode, "KEYWORD_DETERMINISTIC");
   assert.ok(result.results.length <= 3);
-  assert.equal(result.results[0].id, "DEMO_SEED_KR_US_02");
+  assert.equal(result.results[0].id, "DEMO_SEED_KR_US_CTA");
+  assert.equal(messages[2].result.structuredContent.results[0].id, "DEMO_SEED_US_KR_TRUST");
+  assert.match(messages[3].error.message, /unknown tool/);
 });
 
 function waitFor(predicate, timeout = 2000) {

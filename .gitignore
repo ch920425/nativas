@@ -22,7 +22,7 @@ coverage/
 .convex/
 .hermes/
 .runtime/
-runtime/
+/runtime/
 
 # Local databases and retrieval indexes
 *.db

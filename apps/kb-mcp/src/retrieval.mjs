@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
-const corpusUrl = new URL("../../../fixtures/contracts/golden-record.v1.json", import.meta.url);
+const corpusUrl = new URL("../../../fixtures/kb/golden-six.v1.json", import.meta.url);
 const requiredKeys = [
   "schemaVersion", "id", "version", "direction", "sourceLocale", "targetLocale",
   "industry", "audience", "pageType", "componentType", "category", "sourceCopy",
@@ -15,6 +15,7 @@ const directions = new Map([
   ["US_TO_KR", ["en-US", "ko-KR"]]
 ]);
 const componentTypes = new Set(["HERO_HEADLINE", "VALUE_PROPOSITION", "PRIMARY_CTA", "TRUST_COPY"]);
+const fallbackMode = "KEYWORD_DETERMINISTIC";
 
 export const corpusPath = fileURLToPath(corpusUrl);
 
@@ -44,21 +45,25 @@ export function validateCorpus(records) {
     byDirection[record.direction] += 1;
   }
   if (byDirection.KR_TO_US !== 3 || byDirection.US_TO_KR !== 3) throw new Error("golden-six-v1 requires three records per direction");
+  for (const direction of directions.keys()) {
+    const components = new Set(records.filter((record) => record.direction === direction).map((record) => record.componentType));
+    if (!["HERO_HEADLINE", "VALUE_PROPOSITION"].some((type) => components.has(type)) || !components.has("PRIMARY_CTA") || !components.has("TRUST_COPY")) {
+      throw new Error(`record direction ${direction} must cover hero/value proposition, primary CTA, and trust language`);
+    }
+  }
   return true;
 }
 
 export function retrieve(records, request = {}) {
-  const direction = request.direction;
-  if (!directions.has(direction)) throw new Error("direction must be KR_TO_US or US_TO_KR");
-  const limit = Math.min(Math.max(Number(request.limit ?? 3), 1), 3);
+  const { direction, componentType, limit } = validateRetrievalRequest(request);
   const queryTerms = terms([request.query, request.industry, request.audience, request.issueHypothesis].filter(Boolean).join(" "));
   const ranked = records
     .filter((record) => record.direction === direction)
-    .map((record) => ({ record, score: score(record, request.componentType, queryTerms) }))
+    .map((record) => ({ record, score: score(record, componentType, queryTerms) }))
     .sort((a, b) => b.score - a.score || a.record.id.localeCompare(b.record.id))
     .slice(0, limit)
     .map(({ record, score }) => summarize(record, score));
-  return { mode: "KEYWORD_DETERMINISTIC", corpusVersion: "golden-six-v1", results: ranked };
+  return { mode: fallbackMode, corpusVersion: "golden-six-v1", results: ranked };
 }
 
 export function getPage(records, id) {
@@ -69,6 +74,19 @@ export function getPage(records, id) {
 
 export function corpusDigest(records) {
   return createHash("sha256").update(JSON.stringify(records)).digest("hex");
+}
+
+export function validateRetrievalRequest(request) {
+  if (!request || typeof request !== "object" || Array.isArray(request)) throw new Error("retrieval request must be an object");
+  const direction = request.direction;
+  if (!directions.has(direction)) throw new Error("direction must be KR_TO_US or US_TO_KR");
+  if (request.componentType !== undefined && !componentTypes.has(request.componentType)) throw new Error("componentType is invalid");
+  for (const field of ["query", "industry", "audience", "issueHypothesis"]) if (request[field] !== undefined && typeof request[field] !== "string") throw new Error(`${field} must be a string`);
+  if (request.limit !== undefined && (!Number.isInteger(request.limit) || request.limit < 1)) throw new Error("limit must be a positive integer");
+  const [sourceLocale, targetLocale] = directions.get(direction);
+  if (request.sourceLocale !== undefined && request.sourceLocale !== sourceLocale) throw new Error("sourceLocale conflicts with direction");
+  if (request.targetLocale !== undefined && request.targetLocale !== targetLocale) throw new Error("targetLocale conflicts with direction");
+  return { direction, componentType: request.componentType, limit: Math.min(request.limit ?? 3, 3) };
 }
 
 function summarize(record, score) {
@@ -84,6 +102,8 @@ function summarize(record, score) {
     rationale: record.rationale,
     sourceUrl: record.sourceUrls[0],
     screenshotArtifactRef: record.screenshotArtifactRef,
+    capturedAt: record.capturedAt,
+    reviewedAt: record.reviewedAt,
     supportLabel: record.keywords.includes("DEMO_SEED") ? "DEMO_REFERENCE_MATERIAL" : "REVIEWED_REFERENCE_MATERIAL",
     ...(score === null ? {} : { score })
   };
