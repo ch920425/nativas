@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { canTransition, localesFor, validateReport, type AgentEvent, type Audit, type AuditStatus, type Direction, type Report } from "../../../packages/contracts/src/index.ts";
+import { canTransition, localesFor, validateReport, type AgentEvent, type Audit, type AuditErrorCode, type AuditStatus, type Direction, type Report } from "../../../packages/contracts/src/index.ts";
 
 export class StateConflict extends Error {}
 
@@ -11,6 +11,7 @@ export class MemoryAuditStore {
   private readonly eventIds = new Set<string>();
   private readonly reports = new Map<string, Report>();
   private readonly reportKeys = new Map<string, string>();
+  private readonly reportHashes = new Map<string, string>();
   private readonly paymentEvents = new Map<string, string>();
 
   createFree(publicId: string, homepageUrl: string, direction: Direction): Audit {
@@ -37,10 +38,24 @@ export class MemoryAuditStore {
     return audit;
   }
 
-  claim(publicId: string): Audit {
+  claim(publicId: string, owner = "relay", now = Date.now(), leaseMs = 30_000): Audit {
     const audit = this.require(publicId);
     if (audit.kind === "FREE" && audit.status !== "ELIGIBILITY_CHECK") throw new StateConflict("free audit not claimable");
     if (audit.kind === "PAID" && audit.status !== "PAID_QUEUED") throw new StateConflict("paid audit not claimable");
+    if (audit.leaseExpiresAt && Date.parse(audit.leaseExpiresAt) > now && audit.leaseOwner !== owner) throw new StateConflict("audit lease is held");
+    audit.leaseOwner = owner;
+    audit.lastHeartbeatAt = new Date(now).toISOString();
+    audit.leaseExpiresAt = new Date(now + leaseMs).toISOString();
+    audit.revision++;
+    return audit;
+  }
+
+  heartbeat(publicId: string, owner: string, now = Date.now(), leaseMs = 30_000): Audit {
+    const audit = this.require(publicId);
+    if (audit.leaseOwner !== owner || !audit.leaseExpiresAt || Date.parse(audit.leaseExpiresAt) <= now) throw new StateConflict("lease expired or owned by another relay");
+    audit.lastHeartbeatAt = new Date(now).toISOString();
+    audit.leaseExpiresAt = new Date(now + leaseMs).toISOString();
+    audit.revision++;
     return audit;
   }
 
@@ -104,9 +119,36 @@ export class MemoryAuditStore {
     return persisted;
   }
 
+  reconcileHermesStatus(publicId: string, status: string): Audit {
+    const audit = this.require(publicId);
+    if (!audit.hermesRunId || audit.runStartState !== "BOUND") throw new StateConflict("audit has no bound Hermes run");
+    if (status === "failed") return this.fail(publicId, "HERMES_RUN_FAILED", "Hermes run failed");
+    if (status === "cancelled") return this.cancel(publicId);
+    if (!['queued', 'running', 'completed'].includes(status)) throw new StateConflict("unknown Hermes status");
+    return audit;
+  }
+
+  cancel(publicId: string): Audit {
+    const audit = this.require(publicId);
+    if (!canTransition(audit.status, "CANCELLED")) throw new StateConflict("audit cannot be cancelled");
+    audit.error = { code: "CANCELLED", class: "TERMINAL", message: "Audit cancelled" };
+    return this.transition(publicId, "CANCELLED");
+  }
+
+  fail(publicId: string, code: AuditErrorCode, message: string): Audit {
+    const audit = this.require(publicId);
+    if (!canTransition(audit.status, "FAILED")) throw new StateConflict("audit cannot fail");
+    audit.error = { code, class: "TERMINAL", message };
+    return this.transition(publicId, "FAILED");
+  }
+
   publish(report: Report, idempotencyKey: string, refs: Refs): Report {
     const previousId = this.reportKeys.get(idempotencyKey);
-    if (previousId) return this.reports.get(previousId)!;
+    const reportHash = createHash('sha256').update(JSON.stringify(report)).digest('hex');
+    if (previousId) {
+      if (this.reportHashes.get(idempotencyKey) !== reportHash) throw new StateConflict("REPORT_IDEMPOTENCY_CONFLICT");
+      return this.reports.get(previousId)!;
+    }
     const audit = this.require(report.auditId);
     if (!['FREE_RUNNING', 'PAID_RUNNING'].includes(audit.status)) throw new StateConflict("audit is not publishable");
     const validation = validateReport(report, audit, refs.artifacts, refs.evidence, refs.golden);
@@ -115,6 +157,7 @@ export class MemoryAuditStore {
     const persisted = { ...report, reportId };
     this.reports.set(reportId, persisted);
     this.reportKeys.set(idempotencyKey, reportId);
+    this.reportHashes.set(idempotencyKey, reportHash);
     audit.reportId = reportId;
     this.transition(audit.publicId, audit.kind === "FREE" ? "FREE_REPORT" : "PAID_REPORT");
     return persisted;

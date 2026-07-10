@@ -1,4 +1,4 @@
-import { assertCompleteCapture, assertPublicResolution, assertSafeCaptureUrl, REQUIRED_CAPTURE_KINDS } from "../../../apps/runtime/src/adapters.ts";
+import { assertCompleteCapture, assertPublicResolution, assertSafeCaptureUrl, assertSameSiteCandidate, REQUIRED_CAPTURE_KINDS } from "../../../apps/runtime/src/adapters.ts";
 
 export type CaptureResponse = { artifacts: Array<{ kind: string; bytes: number }>; sourceUrl: string; browserMsUsed?: number };
 export type CaptureDependencies = {
@@ -20,4 +20,8 @@ export async function capturePublicPage(rawUrl: string, dependencies: CaptureDep
   assertCompleteCapture(response.artifacts.map((artifact) => artifact.kind));
   if (response.artifacts.reduce((total, artifact) => total + artifact.bytes, 0) > limits.maxBytes) throw new Error("CAPTURE_INCOMPLETE");
   return response;
+}
+
+export function validateLocaleCandidate(rawUrl: string, registrableDomain: string): URL {
+  return assertSameSiteCandidate(rawUrl, registrableDomain);
 }

@@ -16,7 +16,7 @@ export function assertSafeCaptureUrl(rawUrl: string): URL {
 }
 
 export function isUnsafeHostname(hostname: string): boolean {
-  const host = hostname.toLowerCase().replace(/\.$/, "");
+  const host = hostname.toLowerCase().replace(/\.$/, "").replace(/^\[|\]$/g, "");
   if (host === "localhost" || host.endsWith(".localhost") || host === "metadata.google.internal") return true;
   return isIP(host) !== 0 && isPrivateAddress(host);
 }
@@ -36,6 +36,14 @@ export async function assertPublicResolution(url: URL, resolve: (hostname: strin
   const addresses = await resolve(url.hostname);
   if (addresses.length === 0 || addresses.some(isPrivateAddress)) throw new Error("UNSAFE_URL");
   return addresses;
+}
+
+export function assertSameSiteCandidate(rawUrl: string, registrableDomain: string): URL {
+  const url = assertSafeCaptureUrl(rawUrl);
+  const host = url.hostname.toLowerCase();
+  const boundary = registrableDomain.toLowerCase();
+  if (host !== boundary && !host.endsWith(`.${boundary}`)) throw new Error("LOCALE_NOT_FOUND");
+  return url;
 }
 
 export function assertCompleteCapture(kinds: readonly string[]): void {

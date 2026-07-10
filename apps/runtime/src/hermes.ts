@@ -7,7 +7,7 @@ export class HermesCreateError extends Error {
   constructor(dispatch: "NOT_DISPATCHED" | "MAYBE_DISPATCHED", message: string) { super(message); this.dispatch = dispatch; }
 }
 
-type HermesClient = { createRun(input: unknown): Promise<{ run_id: string }>; getRun(runId: string): Promise<{ status: string }> };
+type HermesClient = { createRun(input: unknown): Promise<{ run_id: string }>; getRun(runId: string): Promise<{ status: string }>; stopRun?(runId: string): Promise<void> };
 
 export class HermesRelay {
   private readonly store: MemoryAuditStore;
@@ -38,6 +38,20 @@ export class HermesRelay {
     if (!['queued', 'running'].includes(status.status)) throw new Error("HERMES_RUN_FAILED");
     this.store.append(relayEvent(auditId, created.run_id, "RUN_STARTED", "RUNNING"));
     return created.run_id;
+  }
+
+  async stop(auditId: string): Promise<void> {
+    const audit = this.store.require(auditId);
+    if (!audit.hermesRunId || !this.client.stopRun) throw new Error("HERMES_RUN_FAILED");
+    await this.client.stopRun(audit.hermesRunId);
+    this.store.cancel(auditId);
+  }
+
+  async reconcile(auditId: string): Promise<void> {
+    const audit = this.store.require(auditId);
+    if (!audit.hermesRunId) throw new Error("HERMES_RUN_FAILED");
+    const current = await this.client.getRun(audit.hermesRunId);
+    this.store.reconcileHermesStatus(auditId, current.status);
   }
 }
 

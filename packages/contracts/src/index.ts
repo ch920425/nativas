@@ -20,6 +20,7 @@ export type Audit = {
   homepageUrl: string; direction: Direction; sourceLocale: Locale; targetLocale: Locale; siteBoundary: SiteBoundary; limits: AuditLimits;
   hermesRunId?: string; hermesSessionId?: string; reportId?: string; paymentId?: string;
   runStartState: RunStartState; runStartAttemptId?: string; runStartDispatchState?: RunDispatchState;
+  leaseOwner?: string; leaseExpiresAt?: string; lastHeartbeatAt?: string;
   error?: AuditError; createdAt: string; updatedAt: string;
 };
 export type AgentEvent = { schemaVersion: "1.0"; eventId: string; auditId: string; seq?: number; type: string; actor: "HERMES_PARENT" | "HERMES_CHILD" | "RUNTIME" | "PAYMENT"; status: "QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED" | "CANCELLED"; safeLabel: string; hermesRunId?: string; toolName?: string; occurredAt: string };
@@ -35,17 +36,25 @@ const transitionMap: Record<AuditStatus, AuditStatus[]> = {
 };
 export function canTransition(from: AuditStatus, to: AuditStatus) { return transitionMap[from].includes(to); }
 export function localesFor(direction: Direction): readonly [Locale, Locale] { return direction === "KR_TO_US" ? ["ko-KR", "en-US"] : ["en-US", "ko-KR"]; }
-export function validateReport(report: Report, audit: Pick<Audit, "publicId" | "kind" | "limits">, artifacts: ReadonlySet<string>, evidenceRefs: ReadonlySet<string>, goldenRecords: ReadonlySet<string>): ReportValidation {
+export function validateReport(report: Report, audit: Pick<Audit, "publicId" | "kind" | "limits" | "targetLocale">, artifacts: ReadonlySet<string>, evidenceRefs: ReadonlySet<string>, goldenRecords: ReadonlySet<string>): ReportValidation {
   const errors: Array<{ path: string; code: string }> = [];
   if (report.schemaVersion !== CONTRACT_VERSION) errors.push({ path: "schemaVersion", code: "UNSUPPORTED_VERSION" });
   if (report.auditId !== audit.publicId) errors.push({ path: "auditId", code: "AUDIT_MISMATCH" });
   const expected = audit.limits.exactFindingCount;
   if ((expected !== undefined && report.findings.length !== expected) || report.findings.length > audit.limits.maxFindings) errors.push({ path: "findings", code: "INVALID_FINDING_COUNT" });
+  const ids = new Set<string>();
   for (const [index, finding] of report.findings.entries()) {
+    if (!finding.id.trim() || ids.has(finding.id)) errors.push({ path: `findings[${index}].id`, code: "DUPLICATE_OR_MISSING_ID" });
+    ids.add(finding.id);
     if (!artifacts.has(finding.artifactId)) errors.push({ path: `findings[${index}].artifactId`, code: "UNKNOWN_REFERENCE" });
     for (const ref of finding.evidenceRefs) if (!evidenceRefs.has(`${ref.packId}:${ref.evidenceId}`)) errors.push({ path: `findings[${index}].evidenceRefs`, code: "UNKNOWN_REFERENCE" });
     for (const id of finding.goldenRecordIds) if (!goldenRecords.has(id)) errors.push({ path: `findings[${index}].goldenRecordIds`, code: "UNKNOWN_REFERENCE" });
-    if (!finding.recommendation.trim()) errors.push({ path: `findings[${index}].recommendation`, code: "MISSING_RECOMMENDATION" });
+    if (!finding.title.trim() || finding.title.length > 120) errors.push({ path: `findings[${index}].title`, code: "INVALID_SIZE" });
+    if (!finding.sourceCopy.trim() || finding.sourceCopy.length > 500 || !finding.recommendation.trim() || finding.recommendation.length > 500 || finding.rationale.length > 800) errors.push({ path: `findings[${index}]`, code: "INVALID_SIZE" });
+    if (finding.sourceCopy.trim() === finding.recommendation.trim()) errors.push({ path: `findings[${index}].recommendation`, code: "UNCHANGED_RECOMMENDATION" });
+    const targetIsKorean = /[\uac00-\ud7af]/.test(finding.recommendation);
+    const targetIsEnglish = /^[\x00-\x7F]*$/.test(finding.recommendation) && /[A-Za-z]/.test(finding.recommendation);
+    if ((audit.targetLocale === "ko-KR" && !targetIsKorean) || (audit.targetLocale === "en-US" && !targetIsEnglish)) errors.push({ path: `findings[${index}].recommendation`, code: "TARGET_LANGUAGE_INVALID" });
   }
   return errors.length ? { ok: false, errors } : { ok: true };
 }
