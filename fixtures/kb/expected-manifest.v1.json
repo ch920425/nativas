@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1.0",
+  "corpusVersion": "golden-six-v1",
+  "recordCount": 6,
+  "corpusSha256": "59a58157a1e33286e62f63b1ccb4d7ec14dc76cc988bba7ec5669fdc3c324661",
+  "source": "fixtures/kb/golden-six.v1.json",
+  "generatedBy": "scripts/kb/build-import.mjs",
+  "pages": [
+    { "id": "DEMO_SEED_KR_US_CTA", "sha256": "3a77b99a56bcfac41cd389e6d470efe79ad98d611a0e4901e0fe48c56a805cca" },
+    { "id": "DEMO_SEED_KR_US_HERO", "sha256": "247ddc7fea4c7f99165f6a924b3735e6abe067f12aa73a6139eb17b1a32c14c5" },
+    { "id": "DEMO_SEED_KR_US_TRUST", "sha256": "c5bad490ee4b626d5ce8d8f24389362a9a7230e9172af8e58fd759278ae92015" },
+    { "id": "DEMO_SEED_US_KR_CTA", "sha256": "24d71b8912b873c86b37972bc351ad07de7ae4f69d9f11eb4c86dc52b9b8baf9" },
+    { "id": "DEMO_SEED_US_KR_TRUST", "sha256": "bb40997d2b2ae77f1999f0e5b519d6313b6797e4e387ccdac2b9e60ded02b70a" },
+    { "id": "DEMO_SEED_US_KR_VALUE", "sha256": "821afa5d940aefdb8a85e2305bca7b8eea95af3454b6064fad9dc1d4906feec0" }
+  ],
+  "manifestSha256": "39ce451c5b805beacf9d0bfa04932c50b69c077961c606d2460884d42532c50a"
+}
