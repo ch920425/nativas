@@ -1,0 +1,41 @@
+.DS_Store
+
+# Secrets and local overrides
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Dependencies and generated output
+node_modules/
+dist/
+build/
+coverage/
+.nyc_output/
+.vite/
+*.tsbuildinfo
+*.log
+
+# Service-local state
+.wrangler/
+.convex/
+.hermes/
+.runtime/
+runtime/
+
+# Local databases and retrieval indexes
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.pglite/
+
+# Agent-local state
+.omx/
+.claude/settings.local.json
+
+# Scratch artifacts
+tmp/
+work/
+artifacts/

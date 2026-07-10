@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "1.0",
+  "profile": "navitas",
+  "runtimeCompatibility": {
+    "hermesVersion": "0.18.2",
+    "delegationMode": "native-flat-leaf"
+  },
+  "hashPolicy": "sha256-file-bytes-at-run-creation",
+  "manager": {
+    "id": "navitas-manager",
+    "version": "1.0.0",
+    "path": "hermes/skills/navitas-manager/SKILL.md"
+  },
+  "specialists": [
+    {
+      "id": "navitas-visual-context",
+      "version": "1.0.0",
+      "path": "hermes/skills/navitas-visual-context/SKILL.md"
+    },
+    {
+      "id": "navitas-market-copy",
+      "version": "1.0.0",
+      "path": "hermes/skills/navitas-market-copy/SKILL.md"
+    },
+    {
+      "id": "navitas-evidence-qa",
+      "version": "1.0.0",
+      "path": "hermes/skills/navitas-evidence-qa/SKILL.md"
+    }
+  ]
+}

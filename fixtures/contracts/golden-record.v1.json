@@ -1,0 +1,230 @@
+[
+  {
+    "schemaVersion": "1.0",
+    "id": "DEMO_SEED_KR_US_01",
+    "version": "golden-six-v1",
+    "direction": "KR_TO_US",
+    "sourceLocale": "ko-KR",
+    "targetLocale": "en-US",
+    "industry": "B2B software",
+    "audience": "US operations leaders",
+    "pageType": "HOMEPAGE",
+    "componentType": "HERO_HEADLINE",
+    "category": "DEMO_SEED_PRODUCTIVITY_PROMISE",
+    "sourceCopy": "반복 업무를 줄이고 팀의 속도를 높이세요",
+    "currentTargetCopy": "Reduce repetitive work and raise the speed of your team",
+    "recommendedTargetCopy": "Automate busywork. Move your team faster.",
+    "intent": "Lead with the concrete productivity outcome for a time-constrained buyer.",
+    "rationale": "The synthetic recommendation uses a short two-beat promise instead of mirroring Korean sentence structure.",
+    "visualConstraints": [
+      "Keep the headline to two short clauses",
+      "Fit within two desktop lines",
+      "Preserve the busywork and team-speed concepts"
+    ],
+    "patternType": "PRECEDENT",
+    "sourceUrls": [
+      "https://kr-us-hero.example.invalid/ko",
+      "https://kr-us-hero.example.invalid/en"
+    ],
+    "screenshotArtifactRef": "https://artifacts.example.invalid/golden-six/DEMO_SEED_KR_US_01.png",
+    "capturedAt": "2026-07-10T07:00:00Z",
+    "reviewedAt": "2026-07-10T07:10:00Z",
+    "reviewerStatus": "REVIEWED",
+    "keywords": [
+      "DEMO_SEED",
+      "automation",
+      "productivity",
+      "headline"
+    ]
+  },
+  {
+    "schemaVersion": "1.0",
+    "id": "DEMO_SEED_KR_US_02",
+    "version": "golden-six-v1",
+    "direction": "KR_TO_US",
+    "sourceLocale": "ko-KR",
+    "targetLocale": "en-US",
+    "industry": "Consumer finance",
+    "audience": "US first-time investors",
+    "pageType": "HOMEPAGE",
+    "componentType": "PRIMARY_CTA",
+    "category": "DEMO_SEED_LOW_COMMITMENT_CTA",
+    "sourceCopy": "지금 바로 시작하기",
+    "currentTargetCopy": "Start right now",
+    "recommendedTargetCopy": "Explore your options",
+    "intent": "Invite a cautious financial-services visitor to take a reversible first step.",
+    "rationale": "The synthetic current translation overstates urgency for a trust-sensitive decision; the recommendation lowers perceived commitment.",
+    "visualConstraints": [
+      "Use no more than four words",
+      "Retain a verb-led button label",
+      "Avoid implying that an account is created immediately"
+    ],
+    "patternType": "ANTI_PATTERN",
+    "sourceUrls": [
+      "https://kr-us-finance.example.invalid/ko",
+      "https://kr-us-finance.example.invalid/en"
+    ],
+    "screenshotArtifactRef": "https://artifacts.example.invalid/golden-six/DEMO_SEED_KR_US_02.png",
+    "capturedAt": "2026-07-10T07:20:00Z",
+    "reviewedAt": "2026-07-10T07:30:00Z",
+    "reviewerStatus": "REVIEWED",
+    "keywords": [
+      "DEMO_SEED",
+      "finance",
+      "trust",
+      "cta"
+    ]
+  },
+  {
+    "schemaVersion": "1.0",
+    "id": "DEMO_SEED_KR_US_03",
+    "version": "golden-six-v1",
+    "direction": "KR_TO_US",
+    "sourceLocale": "ko-KR",
+    "targetLocale": "en-US",
+    "industry": "B2B commerce",
+    "audience": "US procurement teams",
+    "pageType": "HOMEPAGE",
+    "componentType": "TRUST_COPY",
+    "category": "DEMO_SEED_VERIFIABLE_PROOF",
+    "sourceCopy": "전 세계 기업이 신뢰하는 파트너",
+    "currentTargetCopy": "A partner trusted by companies around the world",
+    "recommendedTargetCopy": "Trusted by 240 procurement teams across 18 markets",
+    "intent": "Turn a broad trust claim into specific, scannable proof.",
+    "rationale": "The synthetic recommendation demonstrates the pattern of replacing an unsupported superlative with bounded evidence; production copy must use verified numbers only.",
+    "visualConstraints": [
+      "Fit beside a customer-logo row",
+      "Keep the proof line under 70 characters",
+      "Replace all example numbers with verified company data"
+    ],
+    "patternType": "PRECEDENT",
+    "sourceUrls": [
+      "https://kr-us-commerce.example.invalid/ko",
+      "https://kr-us-commerce.example.invalid/en"
+    ],
+    "screenshotArtifactRef": "https://artifacts.example.invalid/golden-six/DEMO_SEED_KR_US_03.png",
+    "capturedAt": "2026-07-10T07:40:00Z",
+    "reviewedAt": "2026-07-10T07:50:00Z",
+    "reviewerStatus": "REVIEWED",
+    "keywords": [
+      "DEMO_SEED",
+      "proof",
+      "trust",
+      "procurement"
+    ]
+  },
+  {
+    "schemaVersion": "1.0",
+    "id": "DEMO_SEED_US_KR_01",
+    "version": "golden-six-v1",
+    "direction": "US_TO_KR",
+    "sourceLocale": "en-US",
+    "targetLocale": "ko-KR",
+    "industry": "Developer tools",
+    "audience": "Korean engineering leaders",
+    "pageType": "HOMEPAGE",
+    "componentType": "VALUE_PROPOSITION",
+    "category": "DEMO_SEED_OUTCOME_BEFORE_METAPHOR",
+    "sourceCopy": "Ship with confidence, from first commit to global scale.",
+    "currentTargetCopy": "첫 커밋부터 글로벌 규모까지 자신감을 가지고 출시하세요.",
+    "recommendedTargetCopy": "첫 커밋부터 글로벌 확장까지, 안정적인 배포를 지원합니다.",
+    "intent": "Express deployment reliability in direct product language for a technical evaluator.",
+    "rationale": "The synthetic recommendation converts an English confidence metaphor into a concrete Korean product outcome while preserving lifecycle scope.",
+    "visualConstraints": [
+      "Fit within two desktop lines",
+      "Preserve the first-commit to global-scale range",
+      "Avoid adding an unverified performance claim"
+    ],
+    "patternType": "PRECEDENT",
+    "sourceUrls": [
+      "https://us-kr-devtools.example.invalid/en",
+      "https://us-kr-devtools.example.invalid/ko"
+    ],
+    "screenshotArtifactRef": "https://artifacts.example.invalid/golden-six/DEMO_SEED_US_KR_01.png",
+    "capturedAt": "2026-07-10T08:00:00Z",
+    "reviewedAt": "2026-07-10T08:10:00Z",
+    "reviewerStatus": "REVIEWED",
+    "keywords": [
+      "DEMO_SEED",
+      "developer tools",
+      "deployment",
+      "value proposition"
+    ]
+  },
+  {
+    "schemaVersion": "1.0",
+    "id": "DEMO_SEED_US_KR_02",
+    "version": "golden-six-v1",
+    "direction": "US_TO_KR",
+    "sourceLocale": "en-US",
+    "targetLocale": "ko-KR",
+    "industry": "Team collaboration",
+    "audience": "Korean small-business owners",
+    "pageType": "HOMEPAGE",
+    "componentType": "HERO_HEADLINE",
+    "category": "DEMO_SEED_NATURAL_REGISTER",
+    "sourceCopy": "Work together, beautifully.",
+    "currentTargetCopy": "아름답게 함께 일하세요.",
+    "recommendedTargetCopy": "팀의 협업을 더 매끄럽게.",
+    "intent": "Communicate an easy, polished collaboration experience without a literal aesthetic claim.",
+    "rationale": "The synthetic current translation sounds unnatural because it carries the English adverb directly; the recommendation uses concise Korean product-copy register.",
+    "visualConstraints": [
+      "Keep the headline under 18 Korean characters",
+      "Remain a single phrase rather than a full sentence",
+      "Preserve the collaboration concept"
+    ],
+    "patternType": "ANTI_PATTERN",
+    "sourceUrls": [
+      "https://us-kr-collaboration.example.invalid/en",
+      "https://us-kr-collaboration.example.invalid/ko"
+    ],
+    "screenshotArtifactRef": "https://artifacts.example.invalid/golden-six/DEMO_SEED_US_KR_02.png",
+    "capturedAt": "2026-07-10T08:20:00Z",
+    "reviewedAt": "2026-07-10T08:30:00Z",
+    "reviewerStatus": "REVIEWED",
+    "keywords": [
+      "DEMO_SEED",
+      "collaboration",
+      "natural register",
+      "headline"
+    ]
+  },
+  {
+    "schemaVersion": "1.0",
+    "id": "DEMO_SEED_US_KR_03",
+    "version": "golden-six-v1",
+    "direction": "US_TO_KR",
+    "sourceLocale": "en-US",
+    "targetLocale": "ko-KR",
+    "industry": "B2B analytics",
+    "audience": "Korean product teams",
+    "pageType": "HOMEPAGE",
+    "componentType": "PRIMARY_CTA",
+    "category": "DEMO_SEED_ACTION_SPECIFICITY",
+    "sourceCopy": "See it in action",
+    "currentTargetCopy": "작동하는 것을 확인하세요",
+    "recommendedTargetCopy": "제품 데모 보기",
+    "intent": "Set a clear expectation that the visitor will see a product demonstration.",
+    "rationale": "The synthetic recommendation replaces a literal but vague construction with the conventional Korean action label for a product demo.",
+    "visualConstraints": [
+      "Use no more than eight Korean characters excluding spaces",
+      "Keep a noun-plus-verb button pattern",
+      "Do not imply a live sales call unless the destination requires one"
+    ],
+    "patternType": "PRECEDENT",
+    "sourceUrls": [
+      "https://us-kr-analytics.example.invalid/en",
+      "https://us-kr-analytics.example.invalid/ko"
+    ],
+    "screenshotArtifactRef": "https://artifacts.example.invalid/golden-six/DEMO_SEED_US_KR_03.png",
+    "capturedAt": "2026-07-10T08:40:00Z",
+    "reviewedAt": "2026-07-10T08:50:00Z",
+    "reviewerStatus": "REVIEWED",
+    "keywords": [
+      "DEMO_SEED",
+      "analytics",
+      "product demo",
+      "cta"
+    ]
+  }
+]
