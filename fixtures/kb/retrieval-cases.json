@@ -1,8 +1,8 @@
 [
-  {"name":"KR hero","query":"automation productivity headline","direction":"KR_TO_US","componentType":"HERO_HEADLINE","expectedId":"DEMO_SEED_KR_US_01"},
-  {"name":"KR CTA","query":"finance trust reversible CTA","direction":"KR_TO_US","componentType":"PRIMARY_CTA","expectedId":"DEMO_SEED_KR_US_02"},
-  {"name":"KR trust","query":"procurement proof trust","direction":"KR_TO_US","componentType":"TRUST_COPY","expectedId":"DEMO_SEED_KR_US_03"},
-  {"name":"US value proposition","query":"developer deployment global scale","direction":"US_TO_KR","componentType":"VALUE_PROPOSITION","expectedId":"DEMO_SEED_US_KR_01"},
-  {"name":"US hero","query":"collaboration natural headline","direction":"US_TO_KR","componentType":"HERO_HEADLINE","expectedId":"DEMO_SEED_US_KR_02"},
-  {"name":"US CTA","query":"product demo action CTA","direction":"US_TO_KR","componentType":"PRIMARY_CTA","expectedId":"DEMO_SEED_US_KR_03"}
+  {"name":"KR hero","query":"automation productivity headline","direction":"KR_TO_US","componentType":"HERO_HEADLINE","expectedId":"DEMO_SEED_KR_US_HERO"},
+  {"name":"KR CTA","query":"finance trust reversible CTA","direction":"KR_TO_US","componentType":"PRIMARY_CTA","expectedId":"DEMO_SEED_KR_US_CTA"},
+  {"name":"KR trust","query":"procurement proof trust","direction":"KR_TO_US","componentType":"TRUST_COPY","expectedId":"DEMO_SEED_KR_US_TRUST"},
+  {"name":"US value proposition","query":"developer deployment global scale","direction":"US_TO_KR","componentType":"VALUE_PROPOSITION","expectedId":"DEMO_SEED_US_KR_VALUE"},
+  {"name":"US CTA","query":"product demo action CTA","direction":"US_TO_KR","componentType":"PRIMARY_CTA","expectedId":"DEMO_SEED_US_KR_CTA"},
+  {"name":"US trust","query":"cancellation risk reduction trust","direction":"US_TO_KR","componentType":"TRUST_COPY","expectedId":"DEMO_SEED_US_KR_TRUST"}
 ]
