@@ -42,5 +42,6 @@ The browser never learns the tunnel address or the shared `EDGE_ORIGIN_TOKEN`. T
 ## Operational limits
 
 - This launch is intentionally dependent on the laptop and tunnel process; closing the laptop, losing network, or stopping either process makes fresh audits unavailable.
+- **Hackathon fallback:** a Cloudflare Quick Tunnel can bridge the laptop immediately when the API token lacks named-tunnel permissions. It is secure behind `EDGE_ORIGIN_TOKEN` but has no uptime guarantee and its generated `trycloudflare.com` origin must be treated as temporary. Replace it with the named `api.<domain>` tunnel as soon as an API token with `Account > Cloudflare Tunnel > Edit` is available.
 - Dodo checkout remains demo-simulated. Do not claim live payment processing until the signed Dodo webhook path is implemented.
 - Rotate `NATIVAS_EDGE_TOKEN` after the hackathon or whenever access is uncertain; update both the Worker secret and laptop environment together.
