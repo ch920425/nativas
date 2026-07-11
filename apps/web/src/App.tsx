@@ -124,6 +124,8 @@ function Intake({ onSubmit }: { onSubmit(input: IntakeInput): Promise<void> }) {
         audience: String(data.get("audience") ?? ""),
         launchGoal: String(data.get("launchGoal") ?? ""),
       });
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "We couldn't start the audit. Please try again.");
     } finally {
       setSubmitting(false);
     }

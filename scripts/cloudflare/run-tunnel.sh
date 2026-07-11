@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-: "${CLOUDFLARE_TUNNEL_TOKEN:?Set the token for the api.nativas.ai Cloudflare Tunnel connector}"
+if [ -z "${CLOUDFLARE_TUNNEL_TOKEN:-}" ]; then
+  CLOUDFLARE_TUNNEL_TOKEN="$(security find-generic-password -a "$USER" -s nativas-cloudflared-tunnel-token -w 2>/dev/null || true)"
+fi
+: "${CLOUDFLARE_TUNNEL_TOKEN:?Store the api.nativas.ai connector token in the macOS Keychain}"
 if ! command -v cloudflared >/dev/null 2>&1; then
   echo "cloudflared is required. Install it with: brew install cloudflared" >&2
   exit 1

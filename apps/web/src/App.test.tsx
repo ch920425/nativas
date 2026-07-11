@@ -43,6 +43,19 @@ describe("intake", () => {
     await user.click(screen.getByRole("radio", { name: /united states → korea/i }));
     expect(screen.getByRole("radio", { name: /united states → korea/i })).toBeChecked();
   });
+
+  it("shows a truthful error when the live audit request cannot start", async () => {
+    render(<App transport={{
+      mode: "LIVE",
+      submit: async () => { throw new Error("The audit service is temporarily unavailable. Please try again."); },
+      get: async () => null,
+      subscribe: () => () => {},
+      cancel: async () => { throw new Error("not used"); },
+      createCheckout: async () => { throw new Error("not used"); },
+    }} />);
+    await submitAudit();
+    expect(await screen.findByRole("alert")).toHaveTextContent(/temporarily unavailable/i);
+  });
 });
 
 describe("live run", () => {
