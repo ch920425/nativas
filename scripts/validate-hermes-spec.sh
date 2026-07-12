@@ -13,6 +13,7 @@ required=(
   "hermes/skills/nativas-evidence-qa/SKILL.md"
   "docs/hermes/local-runtime.md"
   "docs/hermes/discord-operations.md"
+  "docs/hermes/retrieval-lifecycle.md"
 )
 
 for relative in "${required[@]}"; do
@@ -86,7 +87,7 @@ ops_tools = re.search(
 )
 assert kb_tools and ops_tools, "missing MCP include allowlists"
 parse = lambda body: [line.split("-", 1)[1].strip() for line in body.splitlines()]
-assert parse(kb_tools.group("body")) == ["search", "query", "get_page"]
+assert parse(kb_tools.group("body")) == ["search", "query", "get_page", "think"]
 assert parse(ops_tools.group("body")) == [
     "capture_site",
     "search_market_evidence",
@@ -101,6 +102,8 @@ assert "exactly three" in manager
 assert "PAID_DEEP_AUDIT_V1" in manager
 assert "get_artifact_image" in manager
 assert "one to six" in manager
+assert "PARENT_RECONCILIATION" in manager
+assert "think" in manager
 
 for relative in expected.values():
     text = (root / relative).read_text()

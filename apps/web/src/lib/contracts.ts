@@ -3,6 +3,9 @@ import type {
   AuditError as ContractAuditError,
   AuditStatus,
   Direction,
+  PagePair as ContractPagePair,
+  PaidFinding as ContractPaidFinding,
+  PaidReport as ContractPaidReport,
 } from "@nativas/contracts";
 
 export type { AuditErrorCode, AuditStatus, Direction, Locale } from "@nativas/contracts";
@@ -67,10 +70,20 @@ export type AuditReport = {
   liveMarketEvidence: "AVAILABLE" | "DEGRADED";
 };
 
+export type PagePairSummary = Pick<ContractPagePair, "pairId" | "role" | "sourceUrl" | "targetUrl" | "sourceLocale" | "targetLocale" | "pairingMethod"> & {
+  sourceScreenshotId?: string;
+  targetScreenshotId?: string;
+};
+
+export type PaidFinding = ContractPaidFinding;
+export type PaidReport = ContractPaidReport;
+
 export type PaymentStatus = "NONE" | "CHECKOUT_OPEN" | "PENDING_CONFIRMATION" | "SUCCEEDED" | "FAILED";
 
 export type AuditView = {
   auditId: string;
+  kind?: "FREE" | "PAID";
+  parentAuditId?: string;
   status: AuditStatus;
   direction: Direction;
   homepageUrl: string;
@@ -84,6 +97,9 @@ export type AuditView = {
   payment?: { paymentId: string; status: PaymentStatus };
   paidAuditId?: string;
   paidHermesRunId?: string;
+  selectedPairs?: PagePairSummary[];
+  paidReport?: PaidReport;
+  startedAt?: string;
   usage?: { inputTokens: number; outputTokens: number; totalTokens: number };
 };
 
@@ -111,4 +127,8 @@ export interface AuditTransport {
   cancel(auditId: string): Promise<AuditView>;
   /** Valid only in FREE_REPORT; idempotent per audit (one payment, one paid run). */
   createCheckout(auditId: string): Promise<CheckoutSession>;
+  /** Audit-scoped, authorized screenshot URL. Never exposes storage keys. */
+  artifactUrl(auditId: string, artifactId: string): string;
+  /** Loads private screenshot bytes through a short-lived audit-scoped capability. */
+  loadArtifact?(auditId: string, artifactId: string): Promise<Blob>;
 }

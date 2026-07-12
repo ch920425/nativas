@@ -3,7 +3,7 @@ export const CONTRACT_VERSION = "1.0" as const;
 export type Direction = "KR_TO_US" | "US_TO_KR";
 export type Locale = "ko-KR" | "en-US";
 export type AuditKind = "FREE" | "PAID";
-export type AuditStatus = "SUBMITTED" | "ELIGIBILITY_CHECK" | "FREE_RUNNING" | "FREE_REPORT" | "PAID_QUEUED" | "PAID_RUNNING" | "PAID_REPORT" | "FAILED" | "CANCELLED";
+export type AuditStatus = "SUBMITTED" | "ELIGIBILITY_CHECK" | "FREE_RUNNING" | "FREE_REPORT" | "PAID_QUEUED" | "PAID_DISCOVERING" | "PAID_CAPTURING" | "PAID_RUNNING" | "PAID_REPORT" | "FAILED" | "CANCELLED";
 export type RunStartState = "UNRESERVED" | "STARTING" | "BOUND" | "UNCERTAIN";
 export type RunDispatchState = "RESERVED" | "NOT_DISPATCHED" | "MAYBE_DISPATCHED" | "ACKNOWLEDGED";
 export type AuditErrorCode =
@@ -24,14 +24,52 @@ export type Audit = {
   error?: AuditError; createdAt: string; updatedAt: string;
 };
 export type AgentEvent = { schemaVersion: "1.0"; eventId: string; auditId: string; seq?: number; type: string; actor: "HERMES_PARENT" | "HERMES_CHILD" | "RUNTIME" | "PAYMENT"; status: "QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED" | "CANCELLED"; safeLabel: string; hermesRunId?: string; toolName?: string; occurredAt: string };
-export type ArtifactRef = { artifactId: string; pageId: string; kind: "SCREENSHOT" | "HTML" | "MARKDOWN" | "ACCESSIBILITY_TREE"; sourceUrl: string };
+export type PageRole = "PRICING" | "PRODUCT" | "FEATURES" | "SOLUTION" | "USE_CASE" | "CUSTOMER" | "DOCUMENTATION" | "OTHER";
+export type PairingMethod = "HREFLANG" | "LANGUAGE_SWITCH" | "LOCALE_PATTERN";
+export type PagePair = {
+  pairId: string; auditId: string; role: PageRole; sourceUrl: string; targetUrl: string;
+  sourceLocale: Locale; targetLocale: Locale; pairingMethod: PairingMethod;
+  pairingEvidence: string; discoveryScore: number;
+};
+export type ArtifactRef = {
+  artifactId: string; auditId: string; pairId: string; side: "SOURCE" | "TARGET";
+  kind: "SCREENSHOT" | "HTML" | "MARKDOWN" | "ACCESSIBILITY_TREE";
+  r2Key: string; mimeType: string; sha256: string; sizeBytes: number;
+  sourceUrl: string; finalUrl: string; capturedAt: string; width?: number; height?: number;
+};
+export type PaidAudit = {
+  auditId: string; kind: "PAID"; parentAuditId: string; paymentId: string;
+  status: Extract<AuditStatus, "PAID_QUEUED" | "PAID_DISCOVERING" | "PAID_CAPTURING" | "PAID_RUNNING" | "PAID_REPORT" | "FAILED" | "CANCELLED">;
+  input: { homepageUrl: string; direction: Direction; audience: string; launchGoal: string };
+  limits: { maxAdditionalPairs: 2; maxRenderedPages: 4; maxFindings: 6; maxChildren: 3; maxDepth: 1 };
+  selectedPairIds: string[]; captureId?: string; hermesRunId?: string; reportId?: string;
+  error?: AuditError; revision: number; createdAt: string; updatedAt: string;
+};
+export type PaidFinding = {
+  findingId: string; rank: number; pairId: string; targetUrl: string; screenshotArtifactId: string;
+  componentType: "HERO_HEADLINE" | "VALUE_PROPOSITION" | "PRIMARY_CTA" | "TRUST_COPY" | "FEATURE_COPY" | "MICROCOPY";
+  issueType: "LITERAL_TRANSLATION" | "CULTURAL_TONE" | "VALUE_PROP_CLARITY" | "CTA_MARKET_FIT" | "TRUST_SIGNAL" | "TERMINOLOGY" | "VISUAL_FIT";
+  severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+  componentRef: { kind: "CSS_SELECTOR" | "ACCESSIBILITY_NAME" | "TEXT_ANCHOR" | "SEMANTIC_LABEL"; value: string };
+  sourceCopy: string; currentTargetCopy: string; proposedTargetCopy: string;
+  businessImpact: string; rationale: string; confidence: number;
+  evidenceRefs: Array<{ packId: string; evidenceId: string }>; kbRefs: string[];
+};
+export type PaidReport = {
+  schemaVersion: "1.0"; jobType: "PAID"; reportId: string; auditId: string; parentAuditId: string;
+  title: string; executiveSummary: string; auditedPairIds: string[]; findings: PaidFinding[];
+  limitations: string[]; liveMarketEvidence: "AVAILABLE" | "DEGRADED";
+  generation: { hermesRunId: string; contractVersion: string; promptVersion: string; skillVersion: string; kbVersion: string };
+  generatedAt: string;
+};
 export type Finding = { id: string; title: string; componentType: "HERO_HEADLINE" | "VALUE_PROPOSITION" | "PRIMARY_CTA" | "TRUST_COPY"; sourceCopy: string; recommendation: string; rationale: string; artifactId: string; evidenceRefs: Array<{ packId: string; evidenceId: string }>; goldenRecordIds: string[] };
 export type Report = { schemaVersion: "1.0"; auditId: string; reportId?: string; findings: Finding[]; generatedAt: string };
 export type ReportValidation = { ok: true } | { ok: false; errors: Array<{ path: string; code: string }> };
 
 const transitionMap: Record<AuditStatus, AuditStatus[]> = {
   SUBMITTED: ["ELIGIBILITY_CHECK", "FAILED", "CANCELLED"], ELIGIBILITY_CHECK: ["FREE_RUNNING", "FAILED", "CANCELLED"],
-  FREE_RUNNING: ["FREE_REPORT", "FAILED", "CANCELLED"], FREE_REPORT: [], PAID_QUEUED: ["PAID_RUNNING", "FAILED", "CANCELLED"],
+  FREE_RUNNING: ["FREE_REPORT", "FAILED", "CANCELLED"], FREE_REPORT: [], PAID_QUEUED: ["PAID_DISCOVERING", "PAID_RUNNING", "FAILED", "CANCELLED"],
+  PAID_DISCOVERING: ["PAID_CAPTURING", "FAILED", "CANCELLED"], PAID_CAPTURING: ["PAID_RUNNING", "FAILED", "CANCELLED"],
   PAID_RUNNING: ["PAID_REPORT", "FAILED", "CANCELLED"], PAID_REPORT: [], FAILED: [], CANCELLED: []
 };
 export function canTransition(from: AuditStatus, to: AuditStatus) { return transitionMap[from].includes(to); }
@@ -56,5 +94,40 @@ export function validateReport(report: Report, audit: Pick<Audit, "publicId" | "
     const targetIsEnglish = /^[\x00-\x7F]*$/.test(finding.recommendation) && /[A-Za-z]/.test(finding.recommendation);
     if ((audit.targetLocale === "ko-KR" && !targetIsKorean) || (audit.targetLocale === "en-US" && !targetIsEnglish)) errors.push({ path: `findings[${index}].recommendation`, code: "TARGET_LANGUAGE_INVALID" });
   }
+  return errors.length ? { ok: false, errors } : { ok: true };
+}
+
+export function validatePaidReport(
+  report: PaidReport,
+  audit: PaidAudit,
+  pairs: ReadonlyMap<string, PagePair>,
+  artifacts: ReadonlyMap<string, ArtifactRef>,
+  evidenceRefs: ReadonlySet<string>,
+  goldenRecords: ReadonlySet<string>,
+): ReportValidation {
+  const errors: Array<{ path: string; code: string }> = [];
+  if (report.schemaVersion !== CONTRACT_VERSION || report.jobType !== "PAID") errors.push({ path: "schemaVersion", code: "UNSUPPORTED_VERSION" });
+  if (report.auditId !== audit.auditId || report.parentAuditId !== audit.parentAuditId) errors.push({ path: "auditId", code: "AUDIT_MISMATCH" });
+  if (report.auditedPairIds.length < 1 || report.auditedPairIds.length > 2 || new Set(report.auditedPairIds).size !== report.auditedPairIds.length) errors.push({ path: "auditedPairIds", code: "INVALID_PAIR_COUNT" });
+  if (report.findings.length < 1 || report.findings.length > audit.limits.maxFindings) errors.push({ path: "findings", code: "INVALID_FINDING_COUNT" });
+  const ids = new Set<string>();
+  const ranks = new Set<number>();
+  for (const [index, finding] of report.findings.entries()) {
+    const path = `findings[${index}]`;
+    const pair = pairs.get(finding.pairId);
+    const artifact = artifacts.get(finding.screenshotArtifactId);
+    if (!finding.findingId.trim() || ids.has(finding.findingId)) errors.push({ path: `${path}.findingId`, code: "DUPLICATE_OR_MISSING_ID" });
+    if (!Number.isInteger(finding.rank) || finding.rank < 1 || ranks.has(finding.rank)) errors.push({ path: `${path}.rank`, code: "DUPLICATE_OR_INVALID_RANK" });
+    ids.add(finding.findingId); ranks.add(finding.rank);
+    if (!pair || !report.auditedPairIds.includes(finding.pairId) || !audit.selectedPairIds.includes(finding.pairId)) errors.push({ path: `${path}.pairId`, code: "UNKNOWN_REFERENCE" });
+    if (!pair || pair.targetUrl !== finding.targetUrl) errors.push({ path: `${path}.targetUrl`, code: "PAGE_MISMATCH" });
+    if (!artifact || artifact.auditId !== audit.auditId || artifact.pairId !== finding.pairId || artifact.side !== "TARGET" || artifact.kind !== "SCREENSHOT") errors.push({ path: `${path}.screenshotArtifactId`, code: "UNKNOWN_REFERENCE" });
+    if (!finding.sourceCopy.trim() || !finding.currentTargetCopy.trim() || !finding.proposedTargetCopy.trim() || finding.currentTargetCopy.trim() === finding.proposedTargetCopy.trim()) errors.push({ path, code: "INVALID_COPY" });
+    if (!finding.businessImpact.trim() || !finding.rationale.trim() || finding.confidence < 0 || finding.confidence > 1) errors.push({ path, code: "INVALID_ANALYSIS" });
+    for (const ref of finding.evidenceRefs) if (!evidenceRefs.has(`${ref.packId}:${ref.evidenceId}`)) errors.push({ path: `${path}.evidenceRefs`, code: "UNKNOWN_REFERENCE" });
+    if (finding.kbRefs.length === 0 || finding.kbRefs.some((id) => !goldenRecords.has(id))) errors.push({ path: `${path}.kbRefs`, code: "UNKNOWN_REFERENCE" });
+  }
+  for (const pairId of report.auditedPairIds) if (!pairs.has(pairId) || !audit.selectedPairIds.includes(pairId)) errors.push({ path: "auditedPairIds", code: "UNKNOWN_REFERENCE" });
+  if (!report.generation.hermesRunId || report.generation.hermesRunId !== audit.hermesRunId) errors.push({ path: "generation.hermesRunId", code: "RUN_MISMATCH" });
   return errors.length ? { ok: false, errors } : { ok: true };
 }

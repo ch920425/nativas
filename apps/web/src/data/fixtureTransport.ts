@@ -6,6 +6,8 @@ import type {
   AuditTransport,
   AuditView,
   IntakeInput,
+  PaidReport,
+  PagePairSummary,
 } from "../lib/contracts";
 
 /**
@@ -19,6 +21,74 @@ import type {
  */
 
 const STORE_KEY = "nativas.fixture.audits.v1";
+
+const fixturePairs: PagePairSummary[] = [
+  {
+    pairId: "pair_pricing",
+    role: "PRICING",
+    sourceUrl: "https://example.co.kr/ko/pricing",
+    targetUrl: "https://example.co.kr/en/pricing",
+    sourceLocale: "ko-KR",
+    targetLocale: "en-US",
+    pairingMethod: "HREFLANG",
+    sourceScreenshotId: "shot_pricing_ko",
+    targetScreenshotId: "shot_pricing_en",
+  },
+  {
+    pairId: "pair_product",
+    role: "PRODUCT",
+    sourceUrl: "https://example.co.kr/ko/product",
+    targetUrl: "https://example.co.kr/en/product",
+    sourceLocale: "ko-KR",
+    targetLocale: "en-US",
+    pairingMethod: "LANGUAGE_SWITCH",
+    sourceScreenshotId: "shot_product_ko",
+    targetScreenshotId: "shot_product_en",
+  },
+];
+
+function buildPaidReport(auditId: string, parentAuditId: string, degraded: boolean): PaidReport {
+  return {
+    schemaVersion: "1.0",
+    reportId: "rep_fixture_paid_01",
+    auditId,
+    jobType: "PAID",
+    parentAuditId,
+    auditedPairIds: fixturePairs.map((pair) => pair.pairId),
+    title: "Two more surfaces, localized as one coherent buying journey.",
+    executiveSummary: "Hermes found the strongest mismatch in how pricing earns trust and how the product page names the outcome. Six bounded revisions now align both surfaces for a US buyer.",
+    liveMarketEvidence: degraded ? "DEGRADED" : "AVAILABLE",
+    limitations: [
+      "This paid audit covers two additional public locale pairs, not the entire website.",
+      "Screenshots document the captured state; nativas.ai made no site changes.",
+      ...(degraded ? ["Live Linkup evidence was unavailable; reviewed golden references were used instead."] : []),
+    ],
+    findings: fixturePairs.flatMap((pair, pairIndex) => [1, 2, 3].map((itemIndex) => {
+      const rank = pairIndex * 3 + itemIndex;
+      return {
+        findingId: `paid_finding_${rank}`,
+        rank,
+        pairId: pair.pairId,
+        targetUrl: pair.targetUrl,
+        screenshotArtifactId: pair.targetScreenshotId!,
+        componentRef: { kind: "ACCESSIBILITY_NAME" as const, value: itemIndex === 1 ? "Primary page heading" : itemIndex === 2 ? "Plan comparison" : "Primary CTA" },
+        componentType: itemIndex === 1 ? "HERO_HEADLINE" : itemIndex === 2 ? "VALUE_PROPOSITION" : "PRIMARY_CTA",
+        severity: rank <= 2 ? "HIGH" as const : "MEDIUM" as const,
+        issueType: itemIndex === 1 ? "VALUE_PROP_CLARITY" as const : itemIndex === 2 ? "CULTURAL_TONE" as const : "CTA_MARKET_FIT" as const,
+        sourceCopy: itemIndex === 1 ? "모든 업무를 한 곳에서" : itemIndex === 2 ? "비즈니스 플랜" : "시작하기",
+        currentTargetCopy: itemIndex === 1 ? "Everything you need" : itemIndex === 2 ? "Business plan" : "Get started",
+        proposedTargetCopy: itemIndex === 1 ? "Move from first workflow to measurable momentum" : itemIndex === 2 ? "Scale cross-team work without scaling coordination" : "See the workflow on your team",
+        businessImpact: "The revision gives an evaluation-stage buyer a concrete outcome and a lower-friction next step.",
+        rationale: "The recommendation preserves the source meaning while matching the information hierarchy and decision context visible in the captured target page.",
+        confidence: 0.9 - rank * 0.02,
+        evidenceRefs: degraded ? [] : [{ packId: `linkup_${pairIndex + 1}`, evidenceId: `evidence_${itemIndex}` }],
+        kbRefs: [`gold_${pair.role.toLowerCase()}_${itemIndex}`],
+      };
+    })),
+    generation: { hermesRunId: "run_fx_paid_report", contractVersion: "1.0", promptVersion: "fixture-v1", skillVersion: "fixture-v1", kbVersion: "fixture-v1" },
+    generatedAt: nowIso(),
+  };
+}
 
 type Step = { afterMs: number; apply(view: AuditView): AuditView };
 
@@ -246,20 +316,59 @@ export function createFixtureTransport(tickMs = 650): AuditTransport {
       setTimeout(() => {
         const view = readStore()[auditId];
         if (!view?.payment) return;
+        const paidAuditId = `aud_fx_paid_${view.payment!.paymentId.slice(-4)}`;
         let next = pushEvent(view, { type: "PAYMENT_SUCCEEDED", actor: "PAYMENT", status: "SUCCEEDED", safeLabel: "Dodo payment verified by signed webhook" });
-        next = { ...next, payment: { ...view.payment!, status: "SUCCEEDED" }, paidAuditId: `aud_fx_paid_${view.payment!.paymentId.slice(-4)}` };
+        next = { ...next, payment: { ...view.payment!, status: "SUCCEEDED" }, paidAuditId };
         next = pushEvent(next, { type: "PAID_RUN_QUEUED", actor: "RUNTIME", status: "QUEUED", safeLabel: "Paid continuation audit created and queued" });
         save(next);
+        const child: AuditView = {
+          auditId: paidAuditId,
+          kind: "PAID",
+          parentAuditId: auditId,
+          status: "PAID_QUEUED",
+          direction: view.direction,
+          homepageUrl: view.homepageUrl,
+          audience: view.audience,
+          launchGoal: view.launchGoal,
+          degraded: view.homepageUrl.includes("paid-degraded"),
+          events: [],
+          startedAt: nowIso(),
+          payment: { ...view.payment!, status: "SUCCEEDED" },
+        };
+        save(child);
         setTimeout(() => {
-          const queued = readStore()[auditId];
+          const queued = readStore()[paidAuditId];
           if (!queued) return;
-          save({
-            ...pushEvent(queued, { type: "RUN_STARTED", actor: "RUNTIME", status: "RUNNING", safeLabel: "Paid Hermes run observed queued/running", hermesRunId: paidRunId }),
+          const parent = readStore()[auditId];
+          if (parent) save({ ...parent, paidHermesRunId: paidRunId });
+          const discovered = pushEvent(queued, { type: "DISCOVERY_COMPLETED", actor: "RUNTIME", status: "SUCCEEDED", safeLabel: "Selected pricing and product locale pairs" });
+          save({ ...discovered, status: "PAID_RUNNING", selectedPairs: fixturePairs });
+          setTimeout(() => {
+            const capturing = readStore()[paidAuditId];
+            if (!capturing) return;
+            let active = pushEvent(capturing, { type: "CAPTURE_COMPLETED", actor: "RUNTIME", status: "SUCCEEDED", safeLabel: "Stored four rendered page screenshots" });
+            active = pushEvent(active, { type: "RUN_STARTED", actor: "RUNTIME", status: "RUNNING", safeLabel: "Paid Hermes manager is active", hermesRunId: paidRunId });
+            active = pushEvent(active, { type: "DELEGATION_STARTED", actor: "HERMES_PARENT", status: "RUNNING", safeLabel: "Visual, native-copy, and evidence specialists started", hermesRunId: paidRunId });
+            save({
+            ...active,
             paidHermesRunId: paidRunId,
+            hermesRunId: paidRunId,
           });
+            setTimeout(() => {
+              const running = readStore()[paidAuditId];
+              if (!running) return;
+              let complete = pushEvent(running, { type: "DELEGATION_COMPLETED", actor: "HERMES_CHILD", status: "SUCCEEDED", safeLabel: "Three specialist reviews returned", hermesRunId: paidRunId });
+              complete = pushEvent(complete, { type: "REPORT_ACCEPTED", actor: "HERMES_PARENT", status: "SUCCEEDED", safeLabel: "Validated and persisted six findings", hermesRunId: paidRunId });
+              save({ ...complete, status: "PAID_REPORT", paidReport: buildPaidReport(paidAuditId, auditId, running.degraded) });
+            }, tickMs);
+          }, tickMs);
         }, tickMs);
       }, confirmDelay);
       return { checkoutUrl: "#fixture-dodo-checkout", paymentId };
+    },
+    artifactUrl(_auditId, artifactId) {
+      const label = encodeURIComponent(artifactId.replaceAll("_", " "));
+      return `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='960' height='600' viewBox='0 0 960 600'%3E%3Crect width='960' height='600' fill='%23e9edea'/%3E%3Crect x='54' y='74' width='852' height='452' rx='12' fill='%23b9d6c6'/%3E%3Ctext x='96' y='170' font-family='sans-serif' font-size='23' fill='%2314201d'%3EFixture screenshot evidence%3C/text%3E%3Ctext x='96' y='220' font-family='monospace' font-size='16' fill='%233f5d50'%3E${label}%3C/text%3E%3C/svg%3E`;
     },
   };
 }

@@ -73,5 +73,20 @@ export function createLiveTransport(apiBase: string, options: LiveTransportOptio
     async createCheckout(auditId: string) {
       return (await request<CheckoutSession>(`/api/audits/${encodeURIComponent(auditId)}/checkout`, { method: "POST", body: "{}" }))!;
     },
+    artifactUrl(auditId, artifactId) {
+      return `${base}/api/audits/${encodeURIComponent(auditId)}/artifacts/${encodeURIComponent(artifactId)}`;
+    },
+    async loadArtifact(auditId, artifactId) {
+      const capability = (await request<{ token: string }>(
+        `/api/audits/${encodeURIComponent(auditId)}/artifacts/${encodeURIComponent(artifactId)}/capability`,
+        { method: "POST", body: "{}" },
+      ))!;
+      const response = await fetchImpl(
+        `${base}/api/audits/${encodeURIComponent(auditId)}/artifacts/${encodeURIComponent(artifactId)}`,
+        { headers: { authorization: `Bearer ${capability.token}` } },
+      );
+      if (!response.ok) throw new Error(`ARTIFACT_HTTP_${response.status}`);
+      return await response.blob();
+    },
   };
 }

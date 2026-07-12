@@ -17,9 +17,9 @@ delegation:
 
 mcp_servers:
   nativas_kb:
-    command: gbrain
+    command: node
     args:
-      - serve
+      - /ABSOLUTE/PATH/TO/NATIVAS/apps/kb-mcp/src/gbrain-proxy.mjs
     env:
       GBRAIN_HOME: /ABSOLUTE/PATH/TO/NATIVAS_RUNTIME/gbrain
     tools:
@@ -27,6 +27,7 @@ mcp_servers:
         - search
         - query
         - get_page
+        - think
       resources: false
       prompts: false
 

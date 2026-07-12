@@ -37,6 +37,7 @@ describe("live HTTP transport", () => {
     await expect(transport.cancel("aud_live_1")).resolves.toMatchObject({ status: "CANCELLED" });
     await expect(transport.createCheckout("aud_live_1")).resolves.toEqual({ checkoutUrl: "http://localhost/checkout", paymentId: "pay_local_1" });
     expect(transport.mode).toBe("LIVE");
+    expect(transport.artifactUrl("aud live/1", "shot/1")).toBe("http://127.0.0.1:8787/api/audits/aud%20live%2F1/artifacts/shot%2F1");
     expect(fetchImpl).toHaveBeenCalledTimes(4);
   });
 
@@ -76,5 +77,20 @@ describe("live HTTP transport", () => {
 
     const failed = createLiveTransport("http://127.0.0.1:8787", { fetchImpl: async () => response({ error: "gateway down" }, 503) });
     await expect(failed.get("aud_live_1")).rejects.toThrow("gateway down");
+  });
+
+  it("loads private screenshot bytes with a short-lived origin-minted capability", async () => {
+    const bytes = new Uint8Array([137, 80, 78, 71]);
+    const fetchImpl = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith("/capability")) return response({ token: "1700000000.signed", expiresAt: 1700000000 });
+      expect(init?.headers).toEqual({ authorization: "Bearer 1700000000.signed" });
+      return new Response(bytes, { headers: { "content-type": "image/png" } });
+    });
+    const transport = createLiveTransport("https://nativas.ai", { fetchImpl });
+    const blob = await transport.loadArtifact!("aud paid/1", "shot/1");
+    expect(blob.type).toBe("image/png");
+    expect(blob.size).toBe(bytes.byteLength);
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe("https://nativas.ai/api/audits/aud%20paid%2F1/artifacts/shot%2F1/capability");
   });
 });

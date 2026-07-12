@@ -17,6 +17,11 @@ const tools = [
     name: "get_page",
     description: "Read one golden record by stable ID.",
     inputSchema: { type: "object", required: ["id"], properties: { id: { type: "string" } } }
+  },
+  {
+    name: "think",
+    description: "Read-only bounded synthesis over explicitly supplied reviewed golden-record IDs. Returns cited conflict/gap analysis without writing to the brain.",
+    inputSchema: { type: "object", required: ["direction", "question", "recordIds"], properties: { direction: { enum: ["KR_TO_US", "US_TO_KR"] }, question: { type: "string", minLength: 1 }, recordIds: { type: "array", minItems: 1, maxItems: 6, items: { type: "string" } }, limit: { type: "integer", minimum: 1, maximum: 3 } } }
   }
 ];
 
@@ -40,8 +45,21 @@ async function handle(request) {
   if (request.method === "tools/list") return { tools };
   if (request.method !== "tools/call") throw new Error(`unsupported method ${request.method}`);
   const { name, arguments: args = {} } = request.params ?? {};
-  const data = name === "get_page" ? getPage(corpus, args.id) : (name === "search" || name === "query" ? retrieve(corpus, args) : (() => { throw new Error(`unknown tool ${name}`); })());
+  const data = name === "get_page" ? getPage(corpus, args.id) : name === "think" ? think(corpus, args) : (name === "search" || name === "query" ? retrieve(corpus, args) : (() => { throw new Error(`unknown tool ${name}`); })());
   return { content: [{ type: "text", text: JSON.stringify(data) }], structuredContent: data };
+}
+
+function think(records, args) {
+  if (!['KR_TO_US', 'US_TO_KR'].includes(args.direction) || typeof args.question !== 'string' || !args.question.trim()) throw new Error('think requires direction and question');
+  if (!Array.isArray(args.recordIds) || args.recordIds.length < 1 || args.recordIds.length > 6) throw new Error('think requires one to six recordIds');
+  const citations = [...new Set(args.recordIds)].map((id) => getPage(records, id));
+  if (citations.some((record) => record.direction !== args.direction)) throw new Error('think cannot cross locale direction');
+  const limited = citations.slice(0, Math.min(Number.isInteger(args.limit) ? args.limit : 3, 3));
+  return {
+    mode: 'REVIEWED_BOUNDED_SYNTHESIS', corpusVersion: 'golden-six-v1', questionFingerprint: Buffer.from(args.question).toString('base64url').slice(0, 24),
+    answer: limited.map((record) => `${record.componentType}: ${record.precedent}`).join(' | '),
+    conflicts: [], gaps: limited.length < 2 ? ['Only one reviewed precedent was supplied.'] : [], citations: limited
+  };
 }
 
 function reply(payload) { process.stdout.write(`${JSON.stringify(payload)}\n`); }

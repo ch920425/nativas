@@ -1,9 +1,12 @@
 import { execFileSync } from "node:child_process";
+import { createHmac, randomUUID } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { loadCorpus, retrieve } from "../../kb-mcp/src/retrieval.mjs";
 import { assertPublicResolution, assertSafeCaptureUrl } from "../../runtime/src/adapters.ts";
 import type { IntakeInput } from "../../web/src/lib/contracts.ts";
 import type { CapturePacket, GoldenReference, MarketSource, PagePreview } from "./service.ts";
+import type { ArtifactRef, PaidAudit, PagePair } from "@nativas/contracts";
+import { selectPaidPagePairs, type DiscoveredLink } from "./discovery.ts";
 
 const maxHtmlBytes = 2_000_000;
 
@@ -52,6 +55,42 @@ export async function retrieveGoldenReferences(input: IntakeInput): Promise<Gold
   return results;
 }
 
+export async function discoverPaidPagePairs(audit: PaidAudit): Promise<PagePair[]> {
+  const submitted = assertSafeCaptureUrl(audit.input.homepageUrl);
+  const initial = await fetchHtml(submitted);
+  const alternates = alternateLocales(initial.html, initial.url);
+  const sourceLanguage = audit.input.direction === "KR_TO_US" ? "ko" : "en";
+  const targetLanguage = audit.input.direction === "KR_TO_US" ? "en" : "ko";
+  const sourceHome = alternates.get(sourceLanguage) ?? initial.url;
+  const targetHome = alternates.get(targetLanguage);
+  if (!targetHome || sourceHome === targetHome) throw new Error("LOCALE_NOT_FOUND");
+  const sourcePage = sourceHome === initial.url ? initial : await fetchHtml(new URL(sourceHome));
+  const targetPage = targetHome === initial.url ? initial : await fetchHtml(new URL(targetHome));
+  const links = pairHomepageLinks(sourcePage.html, sourcePage.url, targetPage.html, targetPage.url);
+  return selectPaidPagePairs({ auditId: audit.auditId, direction: audit.input.direction, homepageUrls: [sourcePage.url, targetPage.url], links, verifiedHosts: [...new Set([new URL(sourcePage.url).hostname, new URL(targetPage.url).hostname])] });
+}
+
+export async function capturePaidPagePairs(audit: PaidAudit, pairs: PagePair[]): Promise<ArtifactRef[]> {
+  const secret = process.env.CAPTURE_ORIGIN_SECRET || readKeychain("nativas-capture-origin-secret");
+  if (!secret) throw new Error("CAPTURE_INCOMPLETE: capture origin secret is not configured");
+  const endpoint = process.env.NATIVAS_CAPTURE_URL ?? "https://nativas.ai/internal/captures";
+  const pages = pairs.flatMap((pair) => ([{ pairId: pair.pairId, side: "source", url: pair.sourceUrl }, { pairId: pair.pairId, side: "target", url: pair.targetUrl }]));
+  const body = JSON.stringify({ auditId: audit.auditId, siteBoundary: commonSiteBoundary(pairs.flatMap((pair) => [new URL(pair.sourceUrl).hostname, new URL(pair.targetUrl).hostname])), pages });
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const requestId = `req_${randomUUID().replaceAll("-", "")}`;
+  const signature = createHmac("sha256", secret).update(`${timestamp}.${requestId}.${body}`).digest("base64url");
+  const response = await fetch(endpoint, { method: "POST", body, headers: { "content-type": "application/json", "x-nativas-capture-request-id": requestId, "x-nativas-capture-timestamp": timestamp, "x-nativas-capture-signature": signature }, signal: AbortSignal.timeout(125_000) });
+  if (!response.ok) throw new Error(`CAPTURE_INCOMPLETE:${response.status}:${(await response.text()).slice(0, 200)}`);
+  const manifest = await response.json() as { artifacts?: ArtifactRef[] };
+  if (!Array.isArray(manifest.artifacts)) throw new Error("CAPTURE_INCOMPLETE");
+  return manifest.artifacts;
+}
+
+export function createBrowserArtifactCapability(auditId: string, artifactId: string, expiresAt: number, secret = process.env.CAPTURE_ORIGIN_SECRET || readKeychain("nativas-capture-origin-secret")) {
+  if (!secret || !/^[A-Za-z0-9_-]{1,96}$/.test(auditId) || !/^[A-Za-z0-9_-]{1,96}$/.test(artifactId) || !Number.isInteger(expiresAt)) throw new Error("ARTIFACT_CAPABILITY_INVALID");
+  return `${expiresAt}.${createHmac("sha256", secret).update(`${auditId}.${artifactId}.${expiresAt}`).digest("base64url")}`;
+}
+
 async function fetchHtml(start: URL): Promise<{ url: string; html: string }> {
   let current = start;
   for (let redirect = 0; redirect <= 3; redirect += 1) {
@@ -82,6 +121,39 @@ function alternateLocales(html: string, base: string) {
     if (language === "ko" || language === "en") result.set(language, new URL(attrs.href, base).href);
   }
   return result;
+}
+
+function pairHomepageLinks(sourceHtml: string, sourceBase: string, targetHtml: string, targetBase: string): DiscoveredLink[] {
+  const targetLinks = new Map(extractLinks(targetHtml, targetBase).map((link) => [localeNeutralPath(new URL(link.href).pathname), link.href]));
+  const sourceBasePath = localePrefix(new URL(sourceBase).pathname);
+  const targetBasePath = localePrefix(new URL(targetBase).pathname);
+  return extractLinks(sourceHtml, sourceBase).flatMap((link) => {
+    const source = new URL(link.href);
+    const neutral = localeNeutralPath(source.pathname);
+    const exact = targetLinks.get(neutral);
+    const transformed = exact ?? new URL(`${targetBasePath}${neutral}`, targetBase).href;
+    if (!sourceBasePath && !exact) return [];
+    return [{ ...link, counterpartHref: transformed, counterpartMethod: exact ? "LANGUAGE_SWITCH" as const : "LOCALE_PATTERN" as const }];
+  });
+}
+
+function extractLinks(html: string, base: string): DiscoveredLink[] {
+  return (html.match(/<a\b[^>]*>[\s\S]*?<\/a>/gi) ?? []).flatMap((tag) => {
+    const attrs = attributes(tag); if (!attrs.href) return [];
+    try { return [{ href: new URL(attrs.href, base).href, text: textOf(tag), inPrimaryNavigation: /<(?:nav|header)\b/i.test(html.slice(Math.max(0, html.indexOf(tag) - 500), html.indexOf(tag))) }]; } catch { return []; }
+  });
+}
+
+function localePrefix(path: string) { return path.match(/^\/(?:ko(?:-KR)?|en(?:-US)?)(?=\/|$)/i)?.[0] ?? ""; }
+function localeNeutralPath(path: string) { return path.replace(/^\/(?:ko(?:-KR)?|en(?:-US)?)(?=\/|$)/i, "") || "/"; }
+function commonSiteBoundary(hosts: string[]) {
+  const labels = hosts.map((host) => host.toLowerCase().split(".").reverse());
+  const shared: string[] = [];
+  const limit = Math.min(...labels.map((value) => value.length));
+  for (let index = 0; index < limit && labels.every((value) => value[index] === labels[0][index]); index += 1) shared.push(labels[0][index]);
+  const boundary = shared.reverse().join(".");
+  if (!boundary.includes(".")) throw new Error("LOCALE_NOT_FOUND");
+  return boundary;
 }
 
 function attributes(tag: string) {

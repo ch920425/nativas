@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { LocalAuditService, parseFindings } from "../../apps/local-server/src/service.ts";
 import { retrieveGoldenReferences } from "../../apps/local-server/src/dependencies.ts";
+import type { ArtifactRef, PagePair, PaidAudit } from "../../packages/contracts/src/index.ts";
 
 const reportOutput = JSON.stringify({
   title: "A clearer US-market homepage",
@@ -30,6 +31,16 @@ const reportOutput = JSON.stringify({
     }
   ]
 });
+
+const paidOutput = JSON.stringify({
+  title: "Paid audit", executiveSummary: "One screenshot-grounded paid finding.", auditedPairIds: ["pair_pricing"], limitations: [],
+  findings: [{ findingId: "paid_finding_1", rank: 1, pairId: "pair_pricing", targetUrl: "https://example.com/en/pricing", screenshotArtifactId: "pair_pricing_TARGET_SCREENSHOT", componentType: "PRIMARY_CTA", issueType: "CTA_MARKET_FIT", severity: "HIGH", componentRef: { kind: "TEXT_ANCHOR", value: "Start" }, sourceCopy: "시작", currentTargetCopy: "Start", proposedTargetCopy: "See pricing", businessImpact: "Clarifies evaluation intent", rationale: "The screenshot and evidence show an evaluation-stage surface.", confidence: 0.9, evidenceRefs: [{ packId: "linkup", evidenceId: "market_1" }], kbRefs: ["DEMO_SEED_KR_US_CTA"] }],
+});
+
+function paidPair(audit: PaidAudit): PagePair { return { pairId: "pair_pricing", auditId: audit.auditId, role: "PRICING", sourceUrl: "https://example.com/ko/pricing", targetUrl: "https://example.com/en/pricing", sourceLocale: "ko-KR", targetLocale: "en-US", pairingMethod: "HREFLANG", pairingEvidence: "hreflang", discoveryScore: 100 }; }
+function paidArtifacts(audit: PaidAudit, pair: PagePair): ArtifactRef[] {
+  return (["SOURCE", "TARGET"] as const).flatMap((side) => (["SCREENSHOT", "HTML", "MARKDOWN", "ACCESSIBILITY_TREE"] as const).map((kind) => ({ artifactId: `${pair.pairId}_${side}_${kind}`, auditId: audit.auditId, pairId: pair.pairId, side, kind, r2Key: `audits/${audit.auditId}/${side}/${kind}`, mimeType: kind === "SCREENSHOT" ? "image/png" : "text/plain", sha256: `${side}-${kind}`, sizeBytes: 10, sourceUrl: side === "SOURCE" ? pair.sourceUrl : pair.targetUrl, finalUrl: side === "SOURCE" ? pair.sourceUrl : pair.targetUrl, capturedAt: new Date().toISOString() })));
+}
 
 test("the real golden corpus yields all three required reference classes in both directions", async () => {
   for (const direction of ["KR_TO_US", "US_TO_KR"] as const) {
@@ -192,8 +203,14 @@ test("Dodo checkout is idempotent and does not start paid work before webhook co
     retrieveGolden: async () => [{ id: "DEMO_SEED_KR_US_HERO", componentType: "HERO_HEADLINE", precedent: "Pattern", rationale: "Why" }, { id: "DEMO_SEED_KR_US_CTA", componentType: "PRIMARY_CTA", precedent: "Pattern", rationale: "Why" }, { id: "DEMO_SEED_KR_US_TRUST", componentType: "TRUST_COPY", precedent: "Pattern", rationale: "Why" }],
     hermes: {
       async createRun() { run += 1; return { run_id: `run_${run}` }; },
-      async waitForRun(_id, onEvent) { onEvent({ event: "run.completed" }); return { status: "completed", output: reportOutput, usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 } }; },
+      async waitForRun(id, onEvent) { onEvent({ event: "run.completed" }); return { status: "completed", output: id === "run_1" ? reportOutput : paidOutput, usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 } }; },
       async stopRun() {},
+    },
+    paid: {
+      async discover(audit) { return [paidPair(audit)]; },
+      async capture(audit, pairs) { return paidArtifacts(audit, pairs[0]); },
+      async searchMarket() { return [{ id: "market_1", url: "https://example.org", title: "Evidence", content: "Evidence" }]; },
+      async retrieveGolden() { return [{ id: "DEMO_SEED_KR_US_HERO", componentType: "HERO_HEADLINE", precedent: "Pattern", rationale: "Why" }, { id: "DEMO_SEED_KR_US_CTA", componentType: "PRIMARY_CTA", precedent: "Pattern", rationale: "Why" }, { id: "DEMO_SEED_KR_US_TRUST", componentType: "TRUST_COPY", precedent: "Pattern", rationale: "Why" }]; },
     },
     checkout: { async create() { return { checkoutUrl: "https://test.checkout.dodopayments.com/session/test", paymentId: "pay_dodo_1" }; }, async findSucceededPayment() { return null; } },
     id: (() => { let n = 0; return (prefix) => `${prefix}_${++n}`; })(),
@@ -212,10 +229,59 @@ test("Dodo checkout is idempotent and does not start paid work before webhook co
   const confirmed = await service.confirmPayment(audit.auditId, first.paymentId);
   assert.equal(confirmed.payment?.status, "SUCCEEDED");
   assert.ok(confirmed.paidAuditId);
-  const paid = await waitFor(async () => service.get(audit.auditId), (view) => Boolean(view?.paidHermesRunId));
-  assert.ok(paid?.paidHermesRunId);
+  const paid = await waitFor(async () => service.get(confirmed.paidAuditId!), (view) => view?.status === "PAID_REPORT");
+  assert.equal(paid?.paidReport?.findings.length, 1);
+  assert.equal((await service.getPaidReport(confirmed.paidAuditId!))?.jobType, "PAID");
   assert.equal(run, 2);
 });
+
+test("PPAY-02/PSTATE-01 duplicate confirmation creates one child and one paid Hermes run", async () => {
+  let runs = 0;
+  const service = paidService(() => ++runs);
+  const audit = await service.submit({ homepageUrl: "https://example.com", direction: "KR_TO_US", audience: "US buyers", launchGoal: "Increase demos" });
+  await waitFor(async () => service.get(audit.auditId), (view) => view?.status === "FREE_REPORT");
+  await service.createCheckout(audit.auditId);
+  const [first, second] = await Promise.all([service.confirmPayment(audit.auditId, "pay_1"), service.confirmPayment(audit.auditId, "pay_1")]);
+  assert.equal(first.paidAuditId, second.paidAuditId);
+  await waitFor(async () => service.get(first.paidAuditId!), (view) => view?.status === "PAID_REPORT");
+  assert.equal(runs, 2, "one free and one paid run");
+});
+
+test("PPAY-02 conflicting payment replay fails and artifact ownership is audit-scoped", async () => {
+  let runs = 0; const service = paidService(() => ++runs);
+  const audit = await service.submit({ homepageUrl: "https://example.com", direction: "KR_TO_US", audience: "US buyers", launchGoal: "Increase demos" });
+  await waitFor(async () => service.get(audit.auditId), (view) => view?.status === "FREE_REPORT");
+  await service.createCheckout(audit.auditId);
+  const confirmed = await service.confirmPayment(audit.auditId, "pay_1");
+  await assert.rejects(service.confirmPayment(audit.auditId, "pay_other"), /STATE_CONFLICT/);
+  await waitFor(async () => service.get(confirmed.paidAuditId!), (view) => view?.status === "PAID_REPORT");
+  assert.equal((await service.getArtifact(confirmed.paidAuditId!, "pair_pricing_TARGET_SCREENSHOT"))?.kind, "SCREENSHOT");
+  assert.equal(await service.getArtifact("another_audit", "pair_pricing_TARGET_SCREENSHOT"), null);
+});
+
+test("PPAY-02 webhook identity replay accepts identical bytes and rejects a different body", async () => {
+  let runs = 0; const service = paidService(() => ++runs);
+  const audit = await service.submit({ homepageUrl: "https://example.com", direction: "KR_TO_US", audience: "US buyers", launchGoal: "Increase demos" });
+  await waitFor(async () => service.get(audit.auditId), (view) => view?.status === "FREE_REPORT");
+  await service.createCheckout(audit.auditId);
+  const first = await service.acceptPaymentEvent({ auditId: audit.auditId, paymentId: "pay_1", eventId: "evt_1", payloadHash: "hash_1" });
+  const replay = await service.acceptPaymentEvent({ auditId: audit.auditId, paymentId: "pay_1", eventId: "evt_1", payloadHash: "hash_1" });
+  assert.equal(first.paidAuditId, replay.paidAuditId);
+  await assert.rejects(service.acceptPaymentEvent({ auditId: audit.auditId, paymentId: "pay_1", eventId: "evt_1", payloadHash: "different" }), /WEBHOOK_INVALID/);
+});
+
+function paidService(onRun: () => number) {
+  return new LocalAuditService({
+    statePath: null,
+    capture: async () => ({ sourceUrl: "https://example.com/ko", targetUrl: "https://example.com/en", paired: true, source: { headline: "Source", supportingCopy: "Body", cta: "Go", text: "source" }, target: { headline: "Target", supportingCopy: "Body", cta: "Go", text: "target" } }),
+    searchMarket: async () => [{ id: "market_1", url: "https://example.org", title: "Evidence", content: "Evidence" }],
+    retrieveGolden: async () => [{ id: "DEMO_SEED_KR_US_HERO", componentType: "HERO_HEADLINE", precedent: "Pattern", rationale: "Why" }, { id: "DEMO_SEED_KR_US_CTA", componentType: "PRIMARY_CTA", precedent: "Pattern", rationale: "Why" }, { id: "DEMO_SEED_KR_US_TRUST", componentType: "TRUST_COPY", precedent: "Pattern", rationale: "Why" }],
+    hermes: { async createRun() { return { run_id: `run_${onRun()}` }; }, async waitForRun(id, onEvent) { onEvent({ event: "tool.completed", tool_name: "delegate_task" }); return { status: "completed", output: id === "run_1" ? reportOutput : paidOutput }; }, async stopRun() {} },
+    checkout: { async create() { return { checkoutUrl: "https://checkout.test", paymentId: "session_1" }; }, async findSucceededPayment() { return null; } },
+    paid: { async discover(audit) { return [paidPair(audit)]; }, async capture(audit, pairs) { return paidArtifacts(audit, pairs[0]); }, async searchMarket() { return [{ id: "market_1", url: "https://example.org", title: "Evidence", content: "Evidence" }]; }, async retrieveGolden() { return [{ id: "DEMO_SEED_KR_US_HERO", componentType: "HERO_HEADLINE", precedent: "Pattern", rationale: "Why" }, { id: "DEMO_SEED_KR_US_CTA", componentType: "PRIMARY_CTA", precedent: "Pattern", rationale: "Why" }, { id: "DEMO_SEED_KR_US_TRUST", componentType: "TRUST_COPY", precedent: "Pattern", rationale: "Why" }]; } },
+    id: (() => { let n = 0; return (prefix) => `${prefix}_${++n}`; })(),
+  });
+}
 
 async function waitFor<T>(read: () => Promise<T>, done: (value: T) => boolean, timeoutMs = 2000): Promise<T> {
   const deadline = Date.now() + timeoutMs;

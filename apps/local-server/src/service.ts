@@ -1,9 +1,9 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";
-import { localesFor } from "../../../packages/contracts/src/index.ts";
+import { localesFor, type ArtifactRef, type AuditErrorCode, type PagePair, type PaidAudit, type PaidReport } from "../../../packages/contracts/src/index.ts";
 import type { AgentEvent, AuditReport, AuditView, Finding, IntakeInput } from "../../web/src/lib/contracts.ts";
 import type { CheckoutGateway } from "./dodo.ts";
+import { LocalStore } from "./store.ts";
+import { executePaidWorkflow, parsePaidReport, type PaidWorkflowDependencies } from "./paid-workflow.ts";
 
 export type PagePreview = { headline: string; supportingCopy: string; cta: string; text: string };
 export type CapturePacket = { sourceUrl: string; targetUrl: string; paired: boolean; source: PagePreview; target: PagePreview };
@@ -17,13 +17,14 @@ export type HermesRunClient = {
   stopRun(runId: string): Promise<void>;
 };
 
-type Dependencies = {
+export type Dependencies = {
   statePath: string | null;
   capture(url: string, direction: IntakeInput["direction"]): Promise<CapturePacket>;
   searchMarket(input: IntakeInput): Promise<MarketSource[]>;
   retrieveGolden(input: IntakeInput): Promise<GoldenReference[]>;
   hermes: HermesRunClient;
   checkout?: CheckoutGateway;
+  paid?: Omit<PaidWorkflowDependencies, "hermes" | "id">;
   id?: (prefix: string) => string;
 };
 
@@ -37,20 +38,26 @@ export class LocalAuditService {
   private readonly deps: Dependencies;
   private readonly audits = new Map<string, AuditView>();
   private readonly checkoutSessions = new Map<string, { checkoutUrl: string; paymentId: string }>();
+  private readonly paidAudits = new Map<string, PaidAudit>();
+  private readonly pairs = new Map<string, PagePair>();
+  private readonly artifacts = new Map<string, ArtifactRef>();
+  private readonly paidReports = new Map<string, PaidReport>();
   private readonly paymentChecks = new Map<string, number>();
   private readonly id: (prefix: string) => string;
+  private readonly store: LocalStore;
 
   constructor(deps: Dependencies) {
     this.deps = deps;
     this.id = deps.id ?? ((prefix) => `${prefix}_${randomUUID().replaceAll("-", "").slice(0, 16)}`);
-    if (deps.statePath) {
-      try {
-        const stored = JSON.parse(readFileSync(deps.statePath, "utf8")) as Record<string, AuditView>;
-        for (const [key, value] of Object.entries(stored)) this.audits.set(key, value);
-      } catch {
-        // A missing or malformed local cache starts empty; no report is fabricated.
-      }
-    }
+    this.store = new LocalStore(deps.statePath);
+    const stored = this.store.snapshot();
+    for (const [key, value] of Object.entries(stored.freeAudits)) this.audits.set(key, value);
+    for (const [key, value] of Object.entries(stored.paidAudits)) this.paidAudits.set(key, value);
+    for (const [key, value] of Object.entries(stored.pairs)) this.pairs.set(key, value);
+    for (const [key, value] of Object.entries(stored.artifacts)) this.artifacts.set(key, value);
+    for (const [key, value] of Object.entries(stored.paidReports)) this.paidReports.set(key, value);
+    for (const [auditId, value] of Object.entries(stored.checkouts)) this.checkoutSessions.set(auditId, { checkoutUrl: value.checkoutUrl, paymentId: value.checkoutPaymentId });
+    queueMicrotask(() => void this.recoverPaidWork());
   }
 
   async submit(input: IntakeInput): Promise<AuditView> {
@@ -75,6 +82,24 @@ export class LocalAuditService {
     return view ? structuredClone(view) : null;
   }
 
+  async getPaidReport(auditId: string): Promise<PaidReport | null> {
+    const audit = this.paidAudits.get(auditId);
+    if (!audit?.reportId || audit.status !== "PAID_REPORT") return null;
+    return structuredClone(this.paidReports.get(audit.reportId) ?? null);
+  }
+
+  async getArtifact(auditId: string, artifactId: string): Promise<ArtifactRef | null> {
+    const artifact = this.artifacts.get(artifactId);
+    return artifact?.auditId === auditId ? structuredClone(artifact) : null;
+  }
+
+  async acceptPaymentEvent(input: { auditId: string; paymentId: string; eventId: string; payloadHash: string }): Promise<AuditView> {
+    const prior = this.store.snapshot().processedWebhookHashes[input.eventId];
+    if (prior && prior !== input.payloadHash) throw new Error("WEBHOOK_INVALID");
+    if (!prior) this.store.transaction((state) => { state.processedWebhookHashes[input.eventId] = input.payloadHash; });
+    return this.confirmPayment(input.auditId, input.paymentId);
+  }
+
   async cancel(auditId: string): Promise<AuditView> {
     const view = this.require(auditId);
     if (["FREE_REPORT", "PAID_REPORT", "FAILED", "CANCELLED"].includes(view.status)) return structuredClone(view);
@@ -83,6 +108,8 @@ export class LocalAuditService {
     view.error = { code: "CANCELLED", class: "TERMINAL", message: "Audit cancelled at the next safe point." };
     this.event(view, { type: "RUN_CANCELLED", actor: "RUNTIME", status: "CANCELLED", safeLabel: "Run cancelled at the next safe point", hermesRunId: view.hermesRunId });
     this.save(view);
+    const paid = this.paidAudits.get(auditId);
+    if (paid) { paid.status = "CANCELLED"; paid.error = view.error; paid.revision += 1; paid.updatedAt = new Date().toISOString(); this.savePaid(paid); }
     return structuredClone(view);
   }
 
@@ -97,18 +124,42 @@ export class LocalAuditService {
     this.checkoutSessions.set(auditId, session);
     this.event(view, { type: "PAYMENT_PENDING", actor: "PAYMENT", status: "QUEUED", safeLabel: "Dodo checkout created; awaiting signed payment confirmation" });
     this.save(view);
+    this.store.transaction((state) => { state.checkouts[auditId] = { auditId, checkoutUrl: session.checkoutUrl, checkoutPaymentId: session.paymentId }; });
     return session;
   }
 
   async confirmPayment(auditId: string, paymentId: string): Promise<AuditView> {
     const view = this.require(auditId);
-    if (view.payment?.status === "SUCCEEDED") return structuredClone(view);
+    if (view.payment?.status === "SUCCEEDED") {
+      if (view.payment.paymentId !== paymentId) throw new Error("STATE_CONFLICT");
+      return structuredClone(view);
+    }
     if (!view.payment || view.status !== "FREE_REPORT") throw new Error("Payment does not match a pending free-report checkout.");
+    const stored = this.store.snapshot();
+    const existingChildId = stored.paymentChildren[paymentId];
+    if (existingChildId && view.paidAuditId && existingChildId !== view.paidAuditId) throw new Error("STATE_CONFLICT");
     view.payment = { paymentId, status: "SUCCEEDED" };
-    view.paidAuditId ??= this.id("aud_local_paid");
+    view.paidAuditId = existingChildId ?? view.paidAuditId ?? this.id("aud_local_paid");
+    const now = new Date().toISOString();
+    const paid: PaidAudit = this.paidAudits.get(view.paidAuditId) ?? {
+      auditId: view.paidAuditId, kind: "PAID", parentAuditId: view.auditId, paymentId, status: "PAID_QUEUED",
+      input: { homepageUrl: view.homepageUrl, direction: view.direction, audience: view.audience, launchGoal: view.launchGoal },
+      limits: { maxAdditionalPairs: 2, maxRenderedPages: 4, maxFindings: 6, maxChildren: 3, maxDepth: 1 },
+      selectedPairIds: [], revision: 1, createdAt: now, updatedAt: now,
+    };
+    this.paidAudits.set(paid.auditId, paid);
+    const childView: AuditView = this.audits.get(paid.auditId) ?? { auditId: paid.auditId, kind: "PAID", parentAuditId: view.auditId, status: "PAID_QUEUED", direction: view.direction, homepageUrl: view.homepageUrl, audience: view.audience, launchGoal: view.launchGoal, degraded: false, events: [], startedAt: now };
+    this.audits.set(paid.auditId, childView);
     this.event(view, { type: "PAYMENT_SUCCEEDED", actor: "PAYMENT", status: "SUCCEEDED", safeLabel: "Dodo payment verified by signed webhook" });
     this.event(view, { type: "PAID_RUN_QUEUED", actor: "RUNTIME", status: "QUEUED", safeLabel: "One context-linked paid continuation queued" });
     this.save(view);
+    this.save(childView);
+    this.savePaid(paid);
+    this.store.transaction((state) => {
+      state.paymentChildren[paymentId] = paid.auditId;
+      const checkout = state.checkouts[auditId];
+      if (checkout) checkout.succeededPaymentId = paymentId;
+    });
     queueMicrotask(() => void this.startPaid(view.auditId));
     return structuredClone(view);
   }
@@ -184,21 +235,80 @@ export class LocalAuditService {
   }
 
   private async startPaid(parentId: string) {
-    const view = this.require(parentId);
-    try {
-      const created = await this.deps.hermes.createRun({
-        session_id: view.paidAuditId!,
-        instructions: "You are a bounded nativas.ai continuation manager. Acknowledge the inherited free-report context and return a concise JSON status object. Do not browse or modify any site.",
-        input: JSON.stringify({ jobType: "PAID_CONTINUATION_LOCAL_TEST", parentAuditId: parentId, priorHermesRunId: view.hermesRunId, priorReport: view.report, limits: { maxAdditionalSurfacePairs: 2, maxFindings: 6 } }),
-      });
-      view.paidHermesRunId = created.run_id;
-      this.event(view, { type: "RUN_STARTED", actor: "RUNTIME", status: "RUNNING", safeLabel: "Context-linked paid Hermes Native Run started", hermesRunId: created.run_id });
-      this.save(view);
-      void this.deps.hermes.waitForRun(created.run_id, () => undefined).catch(() => undefined);
-    } catch {
-      view.payment = view.payment ? { ...view.payment, status: "FAILED" } : undefined;
-      this.save(view);
+    const parent = this.require(parentId);
+    const paidId = parent.paidAuditId;
+    if (!paidId) return;
+    const paid = this.paidAudits.get(paidId);
+    const view = this.require(paidId);
+    if (!paid || ["PAID_REPORT", "FAILED", "CANCELLED"].includes(paid.status)) return;
+    if (!this.deps.paid) {
+      this.failPaid(paid, view, "CAPTURE_INCOMPLETE", "Paid capture dependencies are not configured.");
+      return;
     }
+    try {
+      await executePaidWorkflow(parent.report, paid, { ...this.deps.paid, hermes: this.deps.hermes, id: this.id }, {
+        transition: (status) => { paid.status = status; paid.revision += 1; paid.updatedAt = new Date().toISOString(); view.status = status; this.savePaid(paid); this.save(view); },
+        event: (type, status, safeLabel, details) => { this.event(view, { type, actor: details?.toolName === "delegate_task" ? "HERMES_PARENT" : "RUNTIME", status, safeLabel, ...details }); this.save(view); },
+        savePairs: (selected) => {
+          paid.selectedPairIds = selected.map((pair) => pair.pairId);
+          view.selectedPairs = selected.map((pair) => ({ ...pair }));
+          for (const pair of selected) this.pairs.set(pair.pairId, pair);
+          this.savePaidData(); this.save(view);
+        },
+        saveArtifacts: (captured) => {
+          paid.captureId = `capture:${paid.auditId}:v1`;
+          for (const artifact of captured) this.artifacts.set(artifact.artifactId, artifact);
+          view.selectedPairs = view.selectedPairs?.map((pair) => ({ ...pair,
+            sourceScreenshotId: captured.find((artifact) => artifact.pairId === pair.pairId && artifact.side === "SOURCE" && artifact.kind === "SCREENSHOT")?.artifactId,
+            targetScreenshotId: captured.find((artifact) => artifact.pairId === pair.pairId && artifact.side === "TARGET" && artifact.kind === "SCREENSHOT")?.artifactId,
+          }));
+          this.savePaidData(); this.save(view);
+        },
+        bindRun: (runId) => { paid.hermesRunId = runId; view.hermesRunId = runId; parent.paidHermesRunId = runId; this.savePaid(paid); this.save(view); this.save(parent); },
+        publish: (report) => { paid.reportId = report.reportId; this.paidReports.set(report.reportId, report); view.paidReport = report; this.savePaidData(); this.save(view); },
+        current: () => structuredClone(paid),
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "HERMES_RUN_FAILED";
+      this.failPaid(paid, view, paidErrorCode(message), message);
+    }
+  }
+
+  private async recoverPaidWork() {
+    for (const paid of this.paidAudits.values()) {
+      if (["PAID_QUEUED", "PAID_DISCOVERING", "PAID_CAPTURING"].includes(paid.status)) queueMicrotask(() => void this.startPaid(paid.parentAuditId));
+      else if (paid.status === "PAID_RUNNING" && paid.hermesRunId) {
+        queueMicrotask(() => void this.resumeBoundPaidRun(paid));
+      }
+    }
+  }
+
+  private async resumeBoundPaidRun(paid: PaidAudit) {
+    const view = this.audits.get(paid.auditId); const parent = this.audits.get(paid.parentAuditId);
+    if (!view || !parent || !paid.hermesRunId || !this.deps.paid) return;
+    try {
+      const pairs = paid.selectedPairIds.map((id) => this.pairs.get(id)).filter((value): value is PagePair => Boolean(value));
+      const artifacts = [...this.artifacts.values()].filter((artifact) => artifact.auditId === paid.auditId);
+      const [market, golden, result] = await Promise.all([
+        this.deps.paid.searchMarket(paid, pairs).catch(() => []), this.deps.paid.retrieveGolden(paid, pairs),
+        this.deps.hermes.waitForRun(paid.hermesRunId, (raw) => { const normalized = normalizeEvent(view, paid.hermesRunId!, raw); if (normalized) { view.events.push(normalized); this.save(view); } }),
+      ]);
+      if (result.status !== "completed" || !result.output) throw new Error(result.error ?? "HERMES_RUN_FAILED");
+      const report = parsePaidReport(result.output, paid, pairs, artifacts, market, golden, this.id);
+      paid.reportId = report.reportId; paid.status = "PAID_REPORT"; paid.revision += 1; paid.updatedAt = new Date().toISOString();
+      this.paidReports.set(report.reportId, report); view.paidReport = report; view.status = "PAID_REPORT";
+      this.savePaidData(); this.savePaid(paid); this.save(view);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "HERMES_RUN_FAILED";
+      this.failPaid(paid, view, paidErrorCode(message), message);
+    }
+  }
+
+  private failPaid(paid: PaidAudit, view: AuditView, code: AuditErrorCode, message: string) {
+    paid.status = "FAILED"; paid.revision += 1; paid.updatedAt = new Date().toISOString();
+    paid.error = { code, class: code === "HERMES_START_UNCERTAIN" ? "CONFLICT" : "TERMINAL", message };
+    view.status = "FAILED"; view.error = paid.error;
+    this.savePaid(paid); this.save(view);
   }
 
   private require(auditId: string) {
@@ -213,12 +323,11 @@ export class LocalAuditService {
 
   private save(view: AuditView) {
     this.audits.set(view.auditId, view);
-    if (!this.deps.statePath) return;
-    mkdirSync(dirname(this.deps.statePath), { recursive: true });
-    const temp = `${this.deps.statePath}.tmp`;
-    writeFileSync(temp, JSON.stringify(Object.fromEntries(this.audits), null, 2));
-    renameSync(temp, this.deps.statePath);
+    this.store.transaction((state) => { state.freeAudits[view.auditId] = structuredClone(view); });
   }
+
+  private savePaid(paid: PaidAudit) { this.paidAudits.set(paid.auditId, paid); this.store.transaction((state) => { state.paidAudits[paid.auditId] = structuredClone(paid); }); }
+  private savePaidData() { this.store.transaction((state) => { state.pairs = Object.fromEntries(this.pairs); state.artifacts = Object.fromEntries(this.artifacts); state.paidReports = Object.fromEntries(this.paidReports); }); }
 }
 
 function assertIntake(input: IntakeInput) {
@@ -338,5 +447,10 @@ function errorCode(message: string): "UNSAFE_URL" | "KB_UNAVAILABLE" | "REPORT_I
   if (message.includes("UNSAFE_URL") || message.includes("INVALID_URL")) return "UNSAFE_URL";
   if (message.includes("KB_UNAVAILABLE")) return "KB_UNAVAILABLE";
   if (message.includes("REPORT_INVALID")) return "REPORT_INVALID";
+  return "HERMES_RUN_FAILED";
+}
+
+function paidErrorCode(message: string): AuditErrorCode {
+  for (const code of ["LOCALE_NOT_FOUND", "CAPTURE_INCOMPLETE", "KB_UNAVAILABLE", "RESEARCH_UNAVAILABLE", "REPORT_INVALID", "HERMES_START_UNCERTAIN", "HERMES_RUN_FAILED"] as const) if (message.includes(code)) return code;
   return "HERMES_RUN_FAILED";
 }

@@ -18,7 +18,7 @@ Hermes 0.18.2 does not expose a per-child toolset field in the model-facing `del
 - Only the parent AuditPacket contains the plaintext capability.
 - Child context must never contain, quote, summarize, or request it.
 - Every `nativas_ops` call requires it; the MCP server rejects missing, wrong, expired, or cross-run capabilities.
-- The gbrain MCP is independently restricted to `search`, `query`, and `get_page`.
+- The gbrain MCP is independently restricted to read-only `search`, `query`, `get_page`, and bounded `think`; lifecycle routing and telemetry are specified in `docs/hermes/retrieval-lifecycle.md`.
 
 This is a defense-in-depth authorization boundary, not a prompt convention. A required integration test proves a child cannot call any `nativas_ops` tool.
 

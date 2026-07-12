@@ -9,10 +9,10 @@ Ship a robust, end-to-end Hermes-powered localization agency for KR ↔ US websi
 ## Chosen services and boundaries
 
 - **Hermes Agent:** the only semantic orchestrator. It plans, retrieves, chooses specialists, calls native `delegate_task`, reconciles, evaluates, and publishes.
-- **Convex:** reactive system of record for audits, normalized events, artifact metadata, reports, payment state, and prompt/skill versions. Never put agent planning in Convex functions.
+- **Convex:** reactive system of record for audits, normalized events, artifact metadata, reports, payment state, prompt/skill versions, privacy-safe retrieval spans, and eval/performance projections. Never put agent planning, raw prompts/results, or gbrain embeddings in Convex functions.
 - **Cloudflare Pages / Browser Run / R2:** frontend hosting, rendered page capture, and immutable evidence bytes. Overlays are stretch.
 - **Linkup:** the sole provider for all web search, research, corpus discovery, and GTM search. **Do not add or call Exa**, including as fallback.
-- **gbrain + PGLite:** isolated six-record localization knowledge base exposed read-only to Hermes. Do not reuse the personal brain or build a new vector adapter.
+- **gbrain + PGLite/pgvector:** isolated six-record localization knowledge base exposed read-only to Hermes. gbrain 0.36.3 has only PGLite and Postgres engines; do not reuse the personal brain or falsely label Convex as a gbrain embedding backend. Convex receives bounded traces and eval projections, not knowledge records or vectors.
 - **Dodo Payments:** one-time checkout plus verified, idempotent webhook/reconciliation that creates exactly one paid continuation.
 - **Thin relay:** claim jobs, call the loopback Hermes Runs API, mirror genuine events, and reconcile state. It must never become a second orchestrator.
 

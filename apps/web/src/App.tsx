@@ -13,7 +13,7 @@ const directionLabels: Record<Direction, string> = {
   US_TO_KR: "United States → Korea",
 };
 
-type Screen = "intake" | "run" | "report" | "paid" | "failed";
+type Screen = "intake" | "run" | "report" | "paid" | "paid-report" | "failed";
 
 function screenFor(audit: AuditView | null): Screen {
   if (!audit) return "intake";
@@ -23,10 +23,14 @@ function screenFor(audit: AuditView | null): Screen {
     case "FREE_RUNNING":
       return "run";
     case "FREE_REPORT":
-      return audit.payment?.status === "SUCCEEDED" && audit.paidAuditId ? "paid" : "report";
+      return "report";
     case "PAID_QUEUED":
+    case "PAID_DISCOVERING":
+    case "PAID_CAPTURING":
     case "PAID_RUNNING":
       return "paid";
+    case "PAID_REPORT":
+      return "paid-report";
     default:
       return "failed";
   }
@@ -37,35 +41,54 @@ function auditIdFromHash(): string | null {
   return match ? match[1] : null;
 }
 
-export function App({ transport = createTransport() }: { transport?: AuditTransport }) {
+export function App({ transport: providedTransport }: { transport?: AuditTransport }) {
+  const transport = useMemo(() => providedTransport ?? createTransport(), [providedTransport]);
   const [audit, setAudit] = useState<AuditView | null>(null);
+  const [routeAuditId, setRouteAuditId] = useState<string | null>(() => auditIdFromHash());
   const [recovered, setRecovered] = useState(false);
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
-    const id = auditIdFromHash();
+    const onHashChange = () => setRouteAuditId(auditIdFromHash());
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
+
+  useEffect(() => {
+    const id = routeAuditId;
     if (!id) return;
+    setNotFound(false);
     let unsubscribe = () => {};
+    let disposed = false;
     transport.get(id).then((view) => {
+      if (disposed) return;
       if (!view) { setNotFound(true); return; }
       setAudit(view);
       if (view.events.length > 0) setRecovered(true);
       unsubscribe = transport.subscribe(id, setAudit);
-    });
-    return () => unsubscribe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    }).catch(() => { if (!disposed) setNotFound(true); });
+    return () => { disposed = true; unsubscribe(); };
+  }, [routeAuditId, transport]);
+
+  useEffect(() => {
+    if (!audit?.paidAuditId || audit.kind === "PAID" || routeAuditId === audit.paidAuditId) return;
+    const nextHash = `#/audit/${audit.paidAuditId}`;
+    window.history.replaceState(null, "", nextHash);
+    setRecovered(false);
+    setRouteAuditId(audit.paidAuditId);
+  }, [audit, routeAuditId]);
 
   async function submit(input: IntakeInput) {
     const created = await transport.submit(input);
     window.location.hash = `#/audit/${created.auditId}`;
+    setRouteAuditId(created.auditId);
     setRecovered(false);
     setAudit(created);
-    transport.subscribe(created.auditId, setAudit);
   }
 
   function reset() {
     window.location.hash = "";
+    setRouteAuditId(null);
     setAudit(null);
     setRecovered(false);
     setNotFound(false);
@@ -96,10 +119,11 @@ export function App({ transport = createTransport() }: { transport?: AuditTransp
         {screen === "report" && audit?.report && (
           <Report audit={audit} onCheckout={async () => {
             const session = await transport.createCheckout(audit.auditId);
-            window.location.assign(session.checkoutUrl);
+            if (!session.checkoutUrl.startsWith("#fixture-")) window.location.assign(session.checkoutUrl);
           }} />
         )}
-        {screen === "paid" && audit && <PaidStart audit={audit} />}
+        {screen === "paid" && audit && <PaidProgress audit={audit} />}
+        {screen === "paid-report" && audit?.paidReport && <PaidReportView audit={audit} transport={transport} />}
         {screen === "failed" && audit && <Failure audit={audit} onReset={reset} />}
       </main>
       <footer>Context-aware localization audits for public KR ↔ US websites. No website changes are made.</footer>
@@ -366,23 +390,124 @@ function CheckoutDialog({ onConfirm }: { onConfirm(): Promise<void> }) {
   );
 }
 
-function PaidStart({ audit }: { audit: AuditView }) {
-  const running = Boolean(audit.paidHermesRunId);
+function PaidProgress({ audit }: { audit: AuditView }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const handle = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(handle);
+  }, []);
+  const events = useMemo(() => [...audit.events].sort((a, b) => a.seq - b.seq), [audit.events]);
+  const elapsedSeconds = audit.startedAt ? Math.max(0, Math.floor((now - Date.parse(audit.startedAt)) / 1000)) : null;
+  const running = audit.status !== "PAID_QUEUED";
   return (
     <section className="paid-page narrow" aria-labelledby="paid-heading">
-      <p className="eyebrow">PAYMENT VERIFIED</p>
-      <h1 id="paid-heading">{running ? "Your deeper audit is running." : "Your deeper audit is queued."}</h1>
-      <p className="lede">One new Hermes run {running ? "is now assessing" : "will assess"} up to two additional public content surfaces, each as a source/target locale pair.</p>
-      <div className="paid-state">
-        <span className="pulse" aria-hidden="true" />
-        <div>
-          <strong>{running ? "Paid run queued and observed running" : "Paid audit created — waiting for the run to be observed"}</strong>
-          <p>{audit.paidAuditId} · linked to {audit.auditId}{audit.paidHermesRunId ? ` · ${audit.paidHermesRunId}` : ""}</p>
-        </div>
-        <span className="tag">{running ? "PAID_RUNNING" : "PAID_QUEUED"}</span>
+      <a className="back-link" href={`#/audit/${audit.parentAuditId}`}>← Free homepage report</a>
+      <p className="eyebrow">PAID DEEP AUDIT · LIVE</p>
+      <h1 id="paid-heading">{running ? "Hermes is auditing the next surfaces." : "Your paid audit is safely queued."}</h1>
+      <p className="lede">This separate run covers up to two additional public locale pairs. Progress below comes only from persisted runtime and Hermes events.</p>
+      <div className="paid-summary" aria-label="Paid audit status">
+        <div><small>Status</small><strong>{audit.status.replaceAll("_", " ")}</strong></div>
+        <div><small>Elapsed</small><strong>{elapsedSeconds === null ? "Waiting for start time" : `${elapsedSeconds}s`}</strong></div>
+        <div><small>Hermes run</small><strong>{audit.hermesRunId ?? audit.paidHermesRunId ?? "Not started"}</strong></div>
       </div>
-      <p className="fine-print">P0 ends here: your verified payment created exactly one linked paid audit and its Hermes run {running ? "is active" : "is starting"}. The finished paid report is the next delivery.</p>
+      {audit.degraded && <p className="degraded-banner" role="status">Live market evidence is degraded. Hermes is continuing with reviewed golden references, and the final report will retain this limitation.</p>}
+      {audit.selectedPairs && audit.selectedPairs.length > 0 && (
+        <section className="selected-pairs" aria-labelledby="selected-pairs-heading">
+          <h2 id="selected-pairs-heading">Selected page pairs</h2>
+          <div className="pair-list">
+            {audit.selectedPairs.map((pair) => (
+              <article key={pair.pairId}>
+                <span className="tag">{pair.role}</span>
+                <strong>{pair.sourceLocale} → {pair.targetLocale}</strong>
+                <a href={pair.sourceUrl} rel="noreferrer" target="_blank">{pair.sourceUrl}</a>
+                <a href={pair.targetUrl} rel="noreferrer" target="_blank">{pair.targetUrl}</a>
+                <small>Paired via {pair.pairingMethod.replaceAll("_", " ").toLowerCase()}</small>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+      <section className="paid-events" aria-labelledby="paid-events-heading">
+        <h2 id="paid-events-heading">Persisted activity</h2>
+        {events.length === 0 ? <p className="empty-note">Waiting for the first persisted paid-audit event…</p> : (
+          <ol className="timeline" role="log" aria-live="polite" aria-label="Paid audit events">
+            {events.map((event) => <li key={event.eventId}><span className={`event-dot ${event.status.toLowerCase()}`} /><div><p>{event.safeLabel}</p><small>#{event.seq} · {event.actor.replaceAll("_", " ").toLowerCase()}</small></div><time dateTime={event.occurredAt}>{event.occurredAt.slice(11, 19)}</time></li>)}
+          </ol>
+        )}
+      </section>
     </section>
+  );
+}
+
+function PaidReportView({ audit, transport }: { audit: AuditView; transport: AuditTransport }) {
+  const report = audit.paidReport!;
+  const byPair = new Map(audit.selectedPairs?.map((pair) => [pair.pairId, pair]) ?? []);
+  return (
+    <section className="paid-report report-page" aria-labelledby="paid-report-heading">
+      <a className="back-link" href={`#/audit/${audit.parentAuditId ?? report.parentAuditId}`}>← Free homepage report</a>
+      <div className="report-hero">
+        <p className="eyebrow">PAID DEEP AUDIT · COMPLETE</p>
+        <h1 id="paid-report-heading">{report.title}</h1>
+        <p className="lede">{report.executiveSummary}</p>
+        <div className="report-meta"><span>{report.auditedPairIds.length} additional page {report.auditedPairIds.length === 1 ? "pair" : "pairs"}</span><span>{report.findings.length} validated findings</span><span className={report.liveMarketEvidence === "DEGRADED" ? "fixture" : "live"}>{report.liveMarketEvidence === "DEGRADED" ? "Degraded evidence" : "Live market evidence"}</span></div>
+      </div>
+      {report.auditedPairIds.map((pairId) => {
+        const pair = byPair.get(pairId);
+        if (!pair) return null;
+        const findings = report.findings.filter((finding) => finding.pairId === pairId).sort((a, b) => a.rank - b.rank);
+        return (
+          <section className="paid-pair-report" key={pairId} aria-labelledby={`pair-${pairId}`}>
+            <header><div><p className="eyebrow">{pair.role} · {pair.pairingMethod.replaceAll("_", " ")}</p><h2 id={`pair-${pairId}`}>{pair.sourceLocale} → {pair.targetLocale}</h2></div><small>{pair.sourceUrl}<br />{pair.targetUrl}</small></header>
+            <div className="paid-screenshots" aria-label={`${pair.role.toLowerCase()} screenshot evidence`}>
+              <ScreenshotFigure auditId={audit.auditId} artifactId={pair.sourceScreenshotId} transport={transport} label={`${pair.role} source page in ${pair.sourceLocale}`} url={pair.sourceUrl} />
+              <ScreenshotFigure auditId={audit.auditId} artifactId={pair.targetScreenshotId} transport={transport} label={`${pair.role} target page in ${pair.targetLocale}`} url={pair.targetUrl} />
+            </div>
+            <div className="paid-findings">
+              {findings.map((finding) => (
+                <article className="paid-finding" key={finding.findingId} aria-label={`Finding ${finding.rank}: ${finding.componentRef.value}`}>
+                  <div className="finding-label"><span>#{finding.rank} · {finding.componentType.replaceAll("_", " ")}</span><span className={`severity ${finding.severity.toLowerCase()}`}>{finding.severity}</span><span className="component-ref">{finding.componentRef.value}</span></div>
+                  <div className="copy-compare"><p><small>Current</small>{finding.currentTargetCopy}</p><p><small>Recommend</small>{finding.proposedTargetCopy}</p></div>
+                  <p className="impact"><strong>Business impact:</strong> {finding.businessImpact}</p>
+                  <p>{finding.rationale}</p>
+                  <div className="refs"><span>{Math.round(finding.confidence * 100)}% confidence</span>{finding.evidenceRefs.map((ref) => <span key={`${ref.packId}:${ref.evidenceId}`}>Evidence: {ref.packId}/{ref.evidenceId}</span>)}{finding.kbRefs.map((id) => <span key={id}>KB: {id}</span>)}</div>
+                </article>
+              ))}
+            </div>
+          </section>
+        );
+      })}
+      <section className="limitations" aria-label="Paid audit scope and limitations"><h2>Scope and limitations</h2>{report.limitations.map((item) => <p key={item}>• {item}</p>)}</section>
+    </section>
+  );
+}
+
+function ScreenshotFigure({ auditId, artifactId, transport, label, url }: { auditId: string; artifactId?: string; transport: AuditTransport; label: string; url: string }) {
+  const [src, setSrc] = useState<string>();
+  const [loadFailed, setLoadFailed] = useState(false);
+  useEffect(() => {
+    if (!artifactId) return;
+    let active = true;
+    let objectUrl: string | undefined;
+    setLoadFailed(false);
+    if (!transport.loadArtifact) {
+      setSrc(transport.artifactUrl(auditId, artifactId));
+      return;
+    }
+    void transport.loadArtifact(auditId, artifactId).then((blob) => {
+      if (!active) return;
+      objectUrl = URL.createObjectURL(blob);
+      setSrc(objectUrl);
+    }).catch(() => active && setLoadFailed(true));
+    return () => {
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [artifactId, auditId, transport]);
+  return (
+    <figure className="evidence-shot">
+      {src && !loadFailed ? <img src={src} alt={label} loading="lazy" onError={() => setLoadFailed(true)} /> : <div className="screenshot-unavailable" role="img" aria-label={`${label} unavailable`}>Screenshot unavailable</div>}
+      <figcaption><strong>{label}</strong><span>{url}</span><small>{artifactId ? `Artifact ${artifactId}` : "No persisted screenshot artifact"}</small></figcaption>
+    </figure>
   );
 }
 

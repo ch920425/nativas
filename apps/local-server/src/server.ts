@@ -1,14 +1,24 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { LocalAuditService } from "./service.ts";
-import { captureHomepagePair, retrieveGoldenReferences, searchMarketEvidence } from "./dependencies.ts";
+import { captureHomepagePair, capturePaidPagePairs, createBrowserArtifactCapability, discoverPaidPagePairs, retrieveGoldenReferences, searchMarketEvidence } from "./dependencies.ts";
 import { startManagedHermes } from "./hermes-native.ts";
-import { createDodoCheckoutGateway, createDodoWebhookVerifier } from "./dodo.ts";
+import { assertExpectedDodoPayment, createDodoCheckoutGateway, createDodoWebhookVerifier } from "./dodo.ts";
 
 export async function startLocalApi(port = Number(process.env.NATIVAS_API_PORT ?? 8787)) {
   const runtimeRoot = resolve(".runtime/nativas-local");
   const managed = await startManagedHermes(resolve(runtimeRoot, "hermes.log"), Number(process.env.NATIVAS_HERMES_PORT ?? 8642));
-  const service = new LocalAuditService({ statePath: resolve(runtimeRoot, "audits.json"), capture: captureHomepagePair, searchMarket: searchMarketEvidence, retrieveGolden: retrieveGoldenReferences, hermes: managed.client, checkout: createDodoCheckoutGateway() });
+  const service = new LocalAuditService({
+    statePath: resolve(runtimeRoot, "audits.json"), capture: captureHomepagePair, searchMarket: searchMarketEvidence,
+    retrieveGolden: retrieveGoldenReferences, hermes: managed.client, checkout: createDodoCheckoutGateway(),
+    paid: {
+      discover: discoverPaidPagePairs,
+      capture: capturePaidPagePairs,
+      searchMarket: (audit) => searchMarketEvidence(audit.input),
+      retrieveGolden: (audit) => retrieveGoldenReferences(audit.input),
+    },
+  });
   const webhookVerifier = createDodoWebhookVerifier();
   const server = createServer(async (request, response) => route(service, webhookVerifier, request, response));
   await new Promise<void>((resolveReady, reject) => { server.once("error", reject); server.listen(port, "127.0.0.1", resolveReady); });
@@ -43,19 +53,34 @@ async function route(service: LocalAuditService, webhookVerifier: ReturnType<typ
       };
       const event = webhookVerifier.unwrap(raw, headers);
       if (event.type !== "payment.succeeded") return send(response, 202, { received: true, ignored: true });
+      assertExpectedDodoPayment(event);
       const auditId = event.data.metadata?.auditId;
       const paymentId = event.data.payment_id;
       if (!auditId || !paymentId) throw new Error("Dodo webhook is missing payment metadata.");
-      await service.confirmPayment(auditId, paymentId);
+      const eventId = headers["webhook-id"];
+      if (!eventId) throw new Error("Dodo webhook is missing event identity.");
+      await service.acceptPaymentEvent({ auditId, paymentId, eventId, payloadHash: createHash("sha256").update(raw).digest("hex") });
       return send(response, 200, { received: true });
     }
     if (request.method === "POST" && url.pathname === "/api/audits") return send(response, 201, await service.submit(await body(request)));
-    const match = url.pathname.match(/^\/api\/audits\/([^/]+)(?:\/(cancel|checkout))?$/);
+    const capabilityMatch = url.pathname.match(/^\/api\/audits\/([^/]+)\/artifacts\/([^/]+)\/capability$/);
+    if (request.method === "POST" && capabilityMatch) {
+      const auditId = decodeURIComponent(capabilityMatch[1]); const artifactId = decodeURIComponent(capabilityMatch[2]);
+      const artifact = await service.getArtifact(auditId, artifactId);
+      if (!artifact || artifact.kind !== "SCREENSHOT") return send(response, 404, { error: "Screenshot artifact not found" });
+      const expiresAt = Math.floor(Date.now() / 1000) + 300;
+      return send(response, 200, { token: createBrowserArtifactCapability(auditId, artifactId, expiresAt), expiresAt });
+    }
+    const match = url.pathname.match(/^\/api\/audits\/([^/]+)(?:\/(cancel|checkout|report))?$/);
     if (!match) return send(response, 404, { error: "not found" });
     const auditId = decodeURIComponent(match[1]);
     if (request.method === "GET" && !match[2]) {
       const view = await service.get(auditId);
       return send(response, view ? 200 : 404, view ?? { error: "Audit not found" });
+    }
+    if (request.method === "GET" && match[2] === "report") {
+      const report = await service.getPaidReport(auditId);
+      return send(response, report ? 200 : 404, report ?? { error: "Paid report not found" });
     }
     if (request.method === "POST" && match[2] === "cancel") return send(response, 200, await service.cancel(auditId));
     if (request.method === "POST" && match[2] === "checkout") return send(response, 200, await service.createCheckout(auditId));

@@ -141,11 +141,11 @@ if rg -n --hidden \
 fi
 
 if find . \
-  \( -path ./.git -o -path '*/node_modules' -o -path '*/dist' -o -path '*/coverage' \) -prune \
+  \( -path ./.git -o -path '*/node_modules' -o -path '*/dist' -o -path '*/coverage' -o -path './.runtime' -o -path './.wrangler' -o -path './.convex' \) -prune \
   -o -type f -size 0 -print | grep -q .; then
   echo "FAIL empty files found" >&2
   find . \
-    \( -path ./.git -o -path '*/node_modules' -o -path '*/dist' -o -path '*/coverage' \) -prune \
+    \( -path ./.git -o -path '*/node_modules' -o -path '*/dist' -o -path '*/coverage' -o -path './.runtime' -o -path './.wrangler' -o -path './.convex' \) -prune \
     -o -type f -size 0 -print >&2
   exit 1
 fi

@@ -5,7 +5,7 @@ export type CheckoutGateway = {
   findSucceededPayment(auditId: string): Promise<string | null>;
 };
 
-export type DodoPaymentEvent = { type: string; data: { payment_id?: string; metadata?: Record<string, string> } };
+export type DodoPaymentEvent = { type: string; data: { payment_id?: string; metadata?: Record<string, string>; product_cart?: Array<{ product_id: string; quantity: number }> | null; total_amount?: number; currency?: string; status?: string | null } };
 export type DodoWebhookVerifier = {
   unwrap(body: string, headers: Record<string, string>): DodoPaymentEvent;
 };
@@ -58,4 +58,12 @@ export function createDodoWebhookVerifier(env: NodeJS.ProcessEnv = process.env):
     environment: env.DODO_ENVIRONMENT === "live_mode" ? "live_mode" : "test_mode",
   });
   return { unwrap(body, headers) { return client.webhooks.unwrap(body, { headers }) as DodoPaymentEvent; } };
+}
+
+export function assertExpectedDodoPayment(event: DodoPaymentEvent, env: NodeJS.ProcessEnv = process.env) {
+  const productId = env.DODO_PRODUCT_ID;
+  if (!productId || !event.data.product_cart?.some((item) => item.product_id === productId && item.quantity === 1)) throw new Error("Dodo payment product does not match checkout.");
+  if (env.DODO_EXPECTED_CURRENCY && event.data.currency !== env.DODO_EXPECTED_CURRENCY) throw new Error("Dodo payment currency does not match checkout.");
+  if (env.DODO_EXPECTED_AMOUNT && event.data.total_amount !== Number(env.DODO_EXPECTED_AMOUNT)) throw new Error("Dodo payment amount does not match checkout.");
+  if (event.data.status && event.data.status !== "succeeded") throw new Error("Dodo payment is not succeeded.");
 }

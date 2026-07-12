@@ -4,6 +4,16 @@
   "main": "cloudflare/worker.mjs",
   "compatibility_date": "2026-07-10",
   "workers_dev": true,
+  "browser": {
+    "binding": "BROWSER",
+    "remote": true
+  },
+  "r2_buckets": [
+    {
+      "binding": "AUDIT_ARTIFACTS",
+      "bucket_name": "nativas-audit-artifacts"
+    }
+  ],
   "assets": {
     "directory": "apps/web/dist",
     "binding": "ASSETS",

@@ -37,7 +37,7 @@ The v1 paid offer remains deliberately bounded to **up to two additional localiz
 - A successful payment creates a paid ID and starts one context-linked Hermes Native Run.
 - The deterministic repository suite currently passes.
 
-### Not implemented
+### Original gaps that drove this specification
 
 - The paid run only acknowledges inherited context and discards its output.
 - No paid page discovery, locale pairing, Browser Rendering capture, R2 storage, or screenshot retrieval exists in the live path.
@@ -47,6 +47,12 @@ The v1 paid offer remains deliberately bounded to **up to two additional localiz
 - Production uses a rotating Quick Tunnel even though the named tunnel exists.
 - R2 is not enabled on the Cloudflare account.
 - The root test command excludes the web test suite; there is no browser E2E or protected production smoke gate.
+
+### Current implementation checkpoint
+
+The repository now contains the deterministic paid vertical slice: paid child persistence, page-pair discovery, Cloudflare Browser Rendering/R2 capture transport, private screenshot capability delivery, paid report validation, paid UI routing/progress/report rendering, bounded gbrain lifecycle policy, and Convex retrieval/eval telemetry schema tests. The root `npm test` gate includes backend, local integration, Cloudflare evidence-plane, KB/gbrain, Convex, and web tests.
+
+The release gate is still unproven until the production rehearsal verifies a real Dodo test payment ending in `PAID_REPORT` on `https://nativas.ai`, with screenshots loaded from private R2, Hermes visual artifact access proven by the pixel-only test, and the named tunnel replacing the temporary Quick Tunnel.
 
 ## 3. Architectural decision record
 
@@ -69,6 +75,12 @@ Deterministic code performs URL safety, discovery scoring, capture transport, pe
 ### ADR-05: one bounded vertical slice
 
 No generic crawler platform, CMS integration, website mutation, authenticated browsing, unlimited audit, new search vendor, new agent framework, or Hermes runtime migration enters this release.
+
+### ADR-06: gbrain owns embeddings; Convex owns telemetry projections
+
+The installed `gbrain 0.36.3.0` was inspected through its executable package and MCP registry. It exposes PGLite and Postgres + pgvector engines and the read-only `search`, `query`, `get_page`, and `think` tools; it does not expose a Convex engine, migration target, or embedding adapter. Nativas therefore keeps its isolated local gbrain PGLite store as the retrieval system of record for this release. Supabase/Postgres + pgvector remains the later migration path when embeddings are explicitly configured, but it is not part of the current production slice. Building a one-off Convex vector adapter is explicitly out of scope because it would bypass proven gbrain hybrid retrieval and create an untested third engine.
+
+Convex instead stores normalized, privacy-safe retrieval spans, tool-call correlations, eval cases/runs, and release-over-release performance comparisons. It never stores raw prompts, queries, retrieved content, customer data, chain-of-thought, or gbrain vectors. See `docs/hermes/retrieval-lifecycle.md`.
 
 ## 4. Target topology
 
@@ -331,6 +343,15 @@ For the paid audit:
 
 Linkup failure may degrade to KB-only only when at least three applicable reviewed references remain. Linkup and KB both unavailable is terminal `KB_UNAVAILABLE`/`RESEARCH_UNAVAILABLE`; no uncited paid report is published.
 
+### 10.1 Lifecycle-specific gbrain policy
+
+- Free evidence lookup uses `search` with direction, component family, audience, and launch goal; maximum three results.
+- Paid page/component hypotheses use `query`; maximum three results per call and three to six unique reviewed records in the packet.
+- Specialists use `get_page` only to resolve an already supplied stable ID. They may not broaden retrieval through synthesis.
+- The parent may use `think` at most once during `PARENT_RECONCILIATION`, only over already selected IDs and only when specialist claims conflict or a support gap remains. `think` never becomes a mandatory latency/cost step and never expands the cited set.
+
+Every call is projected to Convex with `auditId`, `hermesRunId`, `spanId`, lifecycle stage, tool name, KB/prompt/skill version, SHA-256 query fingerprint, timestamps, latency, terminal outcome/error code, bounded result count, and stable record IDs. Raw query/prompt/result bodies and private reasoning are prohibited.
+
 ## 11. Hermes paid workflow
 
 ### 11.1 Viability gate for genuine visual work
@@ -565,8 +586,11 @@ Coverage is scenario/risk coverage, not line-padding. Every P0 scenario below mu
 | PINFRA-01 | 2 | Worker route priority, authenticated named tunnel, bad/missing token, inactive tunnel, and origin 503 fail closed |
 | PLIVE-01 | 4 | Credentialed production rehearsal uses nativas.ai, named Tunnel, Browser/R2, Linkup, gbrain, local Hermes, Dodo, and ends `PAID_REPORT` |
 | POBS-01 | 2 | Correlation chain exists and public/operator telemetry is free of secrets, raw prompts, customer data, and reasoning |
+| PEVID-04 | 2 | Free/paid/specialist/reconciliation stages select `search`/`query`/`get_page`/bounded `think`; cross-direction, missing-ID, and scope-widening calls fail |
+| POBS-02 | 2 | Convex retrieval/tool spans correlate audit -> run -> span -> cited records while rejecting raw query/prompt/result/reasoning/customer fields |
+| POBS-03 | 1 | Versioned eval runs compare pass rate and p95 latency; quality loss or >20% unapproved p95 regression blocks release |
 
-Optional five points: second-direction live rehearsal (2), three-run latency/cost budget (2), 390px/1440px visual regression (1).
+The three added controls are mandatory observability/evidence gates but do not increase the 100-point release score; they refine `PEVID-01` and `POBS-01`. Optional five points: second-direction live rehearsal (2), three-run latency/cost budget (2), 390px/1440px visual regression (1).
 
 ### 17.1 Test layout
 
@@ -578,6 +602,8 @@ tests/backend/paid-report.test.ts
 tests/backend/paid-security.test.ts
 tests/local/paid-api.integration.test.ts
 tests/cloudflare/capture.integration.test.ts
+tests/convex/retrieval_observability.test.ts
+tests/kb/lifecycle.test.mjs
 tests/e2e/paid-deep-audit.spec.ts
 tests/live/paid-production-smoke.mjs
 tests/fixtures/sites/localized-saas/
@@ -592,6 +618,8 @@ tests/fixtures/providers/{hermes,linkup,dodo}/
 - Routine Dodo tests generate cryptographically valid webhook deliveries and exercise the official verifier; release smoke completes hosted checkout.
 - Routine Browser/R2 tests exercise Worker bindings with faithful recorded responses/local binding; release smoke writes/reads real private R2 objects.
 - gbrain always uses the project-isolated corpus; it is never replaced by a mocked array.
+- The installed gbrain MCP tool registry is checked in release preflight; a test fails if `search`, `query`, `get_page`, or `think` disappears or a mutable KB tool enters the Hermes allowlist.
+- Retrieval telemetry tests assert both useful correlations and negative privacy contracts. Eval comparisons cover quality, latency, version drift, and empty/partial runs.
 - Playwright exercises the actual UI, API process, persistence, navigation, refresh, and image loading.
 
 ### 17.3 Required commands
@@ -745,6 +773,7 @@ Every statement must be evidenced:
 - Cloudflare stores four required artifacts per page in private R2 and the UI retrieves authorized screenshots.
 - A real Hermes parent uses one flat three-specialist delegation; the visual leaf proves access to actual screenshot pixels.
 - One to six fully referenced findings persist in a paid report.
+- gbrain remains the isolated PGLite/pgvector retrieval/embedding source; lifecycle-correct tool calls and privacy-safe Convex projections are queryable by audit/run/span and evaluated release over release.
 - The child reaches `PAID_REPORT`; refresh reconstructs the same report.
 - The named tunnel replaces the Quick Tunnel, and no active config contains `trycloudflare.com`.
 - Every P0 test passes, the risk score is at least 95/100, critical branches are at least 95%, changed modules at least 90%, and the protected production smoke ends at a resolvable `PAID_REPORT`.

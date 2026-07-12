@@ -1,4 +1,7 @@
+import { createEvidencePlane } from "./evidence-plane.mjs";
+
 const API_PREFIX = "/api/";
+const routeEvidence = createEvidencePlane();
 
 function unavailable() {
   return Response.json({ error: "API_ORIGIN_NOT_CONFIGURED" }, { status: 503, headers: { "cache-control": "no-store" } });
@@ -19,6 +22,8 @@ function proxyRequest(request, env) {
 export default {
   async fetch(request, env) {
     const pathname = new URL(request.url).pathname;
+    const evidenceResponse = await routeEvidence(request, env);
+    if (evidenceResponse) return evidenceResponse;
     if (pathname === "/health" || pathname.startsWith(API_PREFIX)) return proxyRequest(request, env);
     return env.ASSETS.fetch(request);
   },
