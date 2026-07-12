@@ -25,4 +25,9 @@ The deployed Worker continues to be the public edge. The laptop API continues to
 
 ## Follow-up after MCP tool refresh
 
-Use the MCP to create a named tunnel and `api.nativas.ai` hostname, store its connector token in Keychain, set the Worker `API_ORIGIN` and `EDGE_ORIGIN_TOKEN` through MCP, and confirm `https://nativas.ai/health` from an external network.
+The MCP is now refreshed and authenticated. It created the remotely managed `nativas-hermes-laptop` tunnel and the proxied `api.nativas.ai` CNAME route. The tunnel remains inactive until its connector token is placed in the Keychain service `nativas-cloudflared-tunnel-token`; only then should the Worker `API_ORIGIN` switch to `https://api.nativas.ai`.
+
+Live verification before that cutover:
+
+- `GET https://nativas.ai/health` returned `200` with the local Hermes runtime health payload.
+- `POST https://nativas.ai/api/audits` with a public homepage returned `201` and `SUBMITTED`; the disposable probe was immediately cancelled.
