@@ -183,7 +183,7 @@ test("real local workflow persists capture, Linkup, KB, Hermes events, and exact
   assert.deepEqual(completed?.usage, { inputTokens: 100, outputTokens: 50, totalTokens: 150 });
 });
 
-test("localhost checkout creates one linked paid run and is idempotent", async () => {
+test("Dodo checkout is idempotent and does not start paid work before webhook confirmation", async () => {
   let run = 0;
   const service = new LocalAuditService({
     statePath: null,
@@ -195,6 +195,7 @@ test("localhost checkout creates one linked paid run and is idempotent", async (
       async waitForRun(_id, onEvent) { onEvent({ event: "run.completed" }); return { status: "completed", output: reportOutput, usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 } }; },
       async stopRun() {},
     },
+    checkout: { async create() { return { checkoutUrl: "https://test.checkout.dodopayments.com/session/test", paymentId: "pay_dodo_1" }; } },
     id: (() => { let n = 0; return (prefix) => `${prefix}_${++n}`; })(),
   });
   const audit = await service.submit({ homepageUrl: "https://example.com", direction: "KR_TO_US", audience: "US buyers", launchGoal: "Increase demos" });
@@ -203,10 +204,10 @@ test("localhost checkout creates one linked paid run and is idempotent", async (
   const first = await service.createCheckout(audit.auditId);
   const second = await service.createCheckout(audit.auditId);
   assert.equal(first.paymentId, second.paymentId);
-  const paid = await waitFor(async () => service.get(audit.auditId), (view) => Boolean(view?.paidHermesRunId));
-  assert.equal(paid?.payment?.status, "SUCCEEDED");
-  assert.ok(paid?.paidAuditId);
-  assert.equal(run, 2);
+  const pending = await service.get(audit.auditId);
+  assert.equal(pending?.payment?.status, "PENDING_CONFIRMATION");
+  assert.equal(pending?.paidAuditId, undefined);
+  assert.equal(run, 1);
 });
 
 async function waitFor<T>(read: () => Promise<T>, done: (value: T) => boolean, timeoutMs = 2000): Promise<T> {

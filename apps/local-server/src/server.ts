@@ -3,11 +3,12 @@ import { resolve } from "node:path";
 import { LocalAuditService } from "./service.ts";
 import { captureHomepagePair, retrieveGoldenReferences, searchMarketEvidence } from "./dependencies.ts";
 import { startManagedHermes } from "./hermes-native.ts";
+import { createDodoCheckoutGateway } from "./dodo.ts";
 
 export async function startLocalApi(port = Number(process.env.NATIVAS_API_PORT ?? 8787)) {
   const runtimeRoot = resolve(".runtime/nativas-local");
   const managed = await startManagedHermes(resolve(runtimeRoot, "hermes.log"), Number(process.env.NATIVAS_HERMES_PORT ?? 8642));
-  const service = new LocalAuditService({ statePath: resolve(runtimeRoot, "audits.json"), capture: captureHomepagePair, searchMarket: searchMarketEvidence, retrieveGolden: retrieveGoldenReferences, hermes: managed.client });
+  const service = new LocalAuditService({ statePath: resolve(runtimeRoot, "audits.json"), capture: captureHomepagePair, searchMarket: searchMarketEvidence, retrieveGolden: retrieveGoldenReferences, hermes: managed.client, checkout: createDodoCheckoutGateway() });
   const server = createServer(async (request, response) => route(service, request, response));
   await new Promise<void>((resolveReady, reject) => { server.once("error", reject); server.listen(port, "127.0.0.1", resolveReady); });
   return {

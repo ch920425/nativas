@@ -3,6 +3,7 @@ import { dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 import { localesFor } from "../../../packages/contracts/src/index.ts";
 import type { AgentEvent, AuditReport, AuditView, Finding, IntakeInput } from "../../web/src/lib/contracts.ts";
+import type { CheckoutGateway } from "./dodo.ts";
 
 export type PagePreview = { headline: string; supportingCopy: string; cta: string; text: string };
 export type CapturePacket = { sourceUrl: string; targetUrl: string; paired: boolean; source: PagePreview; target: PagePreview };
@@ -22,6 +23,7 @@ type Dependencies = {
   searchMarket(input: IntakeInput): Promise<MarketSource[]>;
   retrieveGolden(input: IntakeInput): Promise<GoldenReference[]>;
   hermes: HermesRunClient;
+  checkout?: CheckoutGateway;
   id?: (prefix: string) => string;
 };
 
@@ -34,6 +36,7 @@ Return exactly one JSON object and no markdown with title, executiveSummary, and
 export class LocalAuditService {
   private readonly deps: Dependencies;
   private readonly audits = new Map<string, AuditView>();
+  private readonly checkoutSessions = new Map<string, { checkoutUrl: string; paymentId: string }>();
   private readonly id: (prefix: string) => string;
 
   constructor(deps: Dependencies) {
@@ -77,15 +80,15 @@ export class LocalAuditService {
   async createCheckout(auditId: string): Promise<{ checkoutUrl: string; paymentId: string }> {
     const view = this.require(auditId);
     if (view.status !== "FREE_REPORT") throw new Error("Checkout is only available from a completed free report.");
-    if (view.payment) return { checkoutUrl: `http://127.0.0.1:5173/#/audit/${auditId}`, paymentId: view.payment.paymentId };
-    const paymentId = this.id("pay_local_test");
-    view.payment = { paymentId, status: "SUCCEEDED" };
-    view.paidAuditId = this.id("aud_local_paid");
-    this.event(view, { type: "PAYMENT_SUCCEEDED", actor: "PAYMENT", status: "SUCCEEDED", safeLabel: "Local test checkout confirmed; production Dodo webhook is not active" });
-    this.event(view, { type: "PAID_RUN_QUEUED", actor: "RUNTIME", status: "QUEUED", safeLabel: "One context-linked paid continuation queued" });
+    const existing = this.checkoutSessions.get(auditId);
+    if (existing) return existing;
+    if (!this.deps.checkout) throw new Error("Dodo checkout is not configured.");
+    const session = await this.deps.checkout.create({ auditId });
+    view.payment = { paymentId: session.paymentId, status: "PENDING_CONFIRMATION" };
+    this.checkoutSessions.set(auditId, session);
+    this.event(view, { type: "PAYMENT_PENDING", actor: "PAYMENT", status: "QUEUED", safeLabel: "Dodo checkout created; awaiting signed payment confirmation" });
     this.save(view);
-    queueMicrotask(() => void this.startPaid(view.auditId));
-    return { checkoutUrl: `http://127.0.0.1:5173/#/audit/${auditId}`, paymentId };
+    return session;
   }
 
   private async runFree(auditId: string, input: IntakeInput) {

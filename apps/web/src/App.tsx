@@ -94,7 +94,10 @@ export function App({ transport = createTransport() }: { transport?: AuditTransp
           />
         )}
         {screen === "report" && audit?.report && (
-          <Report audit={audit} onCheckout={async () => { await transport.createCheckout(audit.auditId); }} />
+          <Report audit={audit} onCheckout={async () => {
+            const session = await transport.createCheckout(audit.auditId);
+            window.location.assign(session.checkoutUrl);
+          }} />
         )}
         {screen === "paid" && audit && <PaidStart audit={audit} />}
         {screen === "failed" && audit && <Failure audit={audit} onReset={reset} />}
@@ -324,6 +327,7 @@ function Report({ audit, onCheckout }: { audit: AuditView; onCheckout(): Promise
 function CheckoutDialog({ onConfirm }: { onConfirm(): Promise<void> }) {
   const [open, setOpen] = useState(false);
   const [launching, setLaunching] = useState(false);
+  const [error, setError] = useState("");
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Trigger className="primary">Unlock two more surfaces <span aria-hidden="true">↗</span></Dialog.Trigger>
@@ -336,6 +340,7 @@ function CheckoutDialog({ onConfirm }: { onConfirm(): Promise<void> }) {
             starts automatically, covering up to two additional public content surfaces (each one source/target
             locale pair, up to six findings). No subscription, no site changes.
           </Dialog.Description>
+          {error && <p className="recovery" role="alert">{error}</p>}
           <div className="dialog-actions">
             <Dialog.Close className="secondary">Not now</Dialog.Close>
             <button
@@ -343,7 +348,13 @@ function CheckoutDialog({ onConfirm }: { onConfirm(): Promise<void> }) {
               disabled={launching}
               onClick={async () => {
                 setLaunching(true);
-                try { await onConfirm(); setOpen(false); } finally { setLaunching(false); }
+                setError("");
+                try {
+                  await onConfirm();
+                } catch (cause) {
+                  setError(cause instanceof Error ? cause.message : "Dodo checkout could not be opened. Please try again.");
+                  setLaunching(false);
+                }
               }}
             >
               {launching ? "Opening Dodo checkout…" : "Continue to Dodo checkout"}
