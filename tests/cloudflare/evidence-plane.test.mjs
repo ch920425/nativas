@@ -200,7 +200,7 @@ test("PSEC-02: public address classifier blocks local, private, metadata, docume
   assert.equal(isPublicAddress("2606:4700:4700::1111"), true);
 });
 
-test("PCAP-02: Browser Run 429 retries once, then publishes a complete capture", async () => {
+test("PCAP-02: Browser Run 429 retries with bounded backoff, then publishes a complete capture", async () => {
   const browser = browserFixture([
     new Response("rate limited", { status: 429 }),
     new Response(JSON.stringify(snapshotPayload()), { status: 200, headers: { "content-type": "application/json" } }),
@@ -400,8 +400,8 @@ test("PCAP-02: Browser Run terminal errors, invalid JSON, invalid base64, oversi
   const page = { ...twoPairPayload(), pages: [twoPairPayload().pages[0]] };
   const failures = [
     ["terminal exception", [new Error("connection reset")], "BROWSER_CAPTURE_FAILED"],
-    ["timeout twice", [new Error("timeout"), new Error("timeout")], "BROWSER_CAPTURE_FAILED"],
-    ["server error twice", [new Response("no", { status: 500 }), new Response("no", { status: 503 })], "BROWSER_CAPTURE_FAILED"],
+    ["timeout on every bounded attempt", [new Error("timeout"), new Error("timeout"), new Error("timeout"), new Error("timeout")], "BROWSER_CAPTURE_FAILED"],
+    ["server error on every bounded attempt", [new Response("no", { status: 500 }), new Response("no", { status: 503 }), new Response("no", { status: 500 }), new Response("no", { status: 503 })], "BROWSER_CAPTURE_FAILED"],
     ["client error", [new Response("bad", { status: 400 })], "BROWSER_CAPTURE_FAILED"],
     ["invalid JSON", [new Response("not-json", { status: 200 })], "CAPTURE_INCOMPLETE"],
     ["invalid screenshot", [new Response(JSON.stringify(snapshotPayload({ screenshot: "%%%" })), { status: 200 })], "CAPTURE_INCOMPLETE"],

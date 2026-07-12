@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
 import readline from 'node:readline';
+import { describeGbrainEngine, resolveGbrainEngine } from './gbrain-env.mjs';
 import { ALLOWED_GBRAIN_TOOLS, sanitizeGbrainToolCall } from './gbrain-policy.mjs';
 
-const upstream = spawn('gbrain', ['serve'], { env: process.env, stdio: ['pipe', 'pipe', 'inherit'] });
+const resolved = resolveGbrainEngine(process.env);
+process.stderr.write(`nativas gbrain proxy engine: ${JSON.stringify(describeGbrainEngine(resolved))}\n`);
+const upstream = spawn('gbrain', ['serve'], { env: resolved.env, stdio: ['pipe', 'pipe', 'inherit'] });
 const input = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
 const output = readline.createInterface({ input: upstream.stdout, crlfDelay: Infinity });
 

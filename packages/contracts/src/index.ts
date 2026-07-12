@@ -112,20 +112,31 @@ export function validatePaidReport(
   if (report.findings.length < 1 || report.findings.length > audit.limits.maxFindings) errors.push({ path: "findings", code: "INVALID_FINDING_COUNT" });
   const ids = new Set<string>();
   const ranks = new Set<number>();
-  for (const [index, finding] of report.findings.entries()) {
+  // Model output is untrusted: every field may be missing or mistyped, and the
+  // validator must return typed errors (so bounded repair can run), never throw.
+  const text = (value: unknown) => (typeof value === "string" ? value : "");
+  for (const [index, rawFinding] of report.findings.entries()) {
     const path = `findings[${index}]`;
-    const pair = pairs.get(finding.pairId);
-    const artifact = artifacts.get(finding.screenshotArtifactId);
-    if (!finding.findingId.trim() || ids.has(finding.findingId)) errors.push({ path: `${path}.findingId`, code: "DUPLICATE_OR_MISSING_ID" });
-    if (!Number.isInteger(finding.rank) || finding.rank < 1 || ranks.has(finding.rank)) errors.push({ path: `${path}.rank`, code: "DUPLICATE_OR_INVALID_RANK" });
-    ids.add(finding.findingId); ranks.add(finding.rank);
-    if (!pair || !report.auditedPairIds.includes(finding.pairId) || !audit.selectedPairIds.includes(finding.pairId)) errors.push({ path: `${path}.pairId`, code: "UNKNOWN_REFERENCE" });
+    const finding = (rawFinding && typeof rawFinding === "object" ? rawFinding : {}) as Partial<PaidFinding>;
+    const findingId = text(finding.findingId);
+    const pair = typeof finding.pairId === "string" ? pairs.get(finding.pairId) : undefined;
+    const artifact = typeof finding.screenshotArtifactId === "string" ? artifacts.get(finding.screenshotArtifactId) : undefined;
+    if (!findingId.trim() || ids.has(findingId)) errors.push({ path: `${path}.findingId`, code: "DUPLICATE_OR_MISSING_ID" });
+    if (!Number.isInteger(finding.rank) || (finding.rank as number) < 1 || ranks.has(finding.rank as number)) errors.push({ path: `${path}.rank`, code: "DUPLICATE_OR_INVALID_RANK" });
+    ids.add(findingId); ranks.add(finding.rank as number);
+    if (!pair || !report.auditedPairIds.includes(finding.pairId as string) || !audit.selectedPairIds.includes(finding.pairId as string)) errors.push({ path: `${path}.pairId`, code: "UNKNOWN_REFERENCE" });
     if (!pair || pair.targetUrl !== finding.targetUrl) errors.push({ path: `${path}.targetUrl`, code: "PAGE_MISMATCH" });
     if (!artifact || artifact.auditId !== audit.auditId || artifact.pairId !== finding.pairId || artifact.side !== "TARGET" || artifact.kind !== "SCREENSHOT") errors.push({ path: `${path}.screenshotArtifactId`, code: "UNKNOWN_REFERENCE" });
-    if (!finding.sourceCopy.trim() || !finding.currentTargetCopy.trim() || !finding.proposedTargetCopy.trim() || finding.currentTargetCopy.trim() === finding.proposedTargetCopy.trim()) errors.push({ path, code: "INVALID_COPY" });
-    if (!finding.businessImpact.trim() || !finding.rationale.trim() || finding.confidence < 0 || finding.confidence > 1) errors.push({ path, code: "INVALID_ANALYSIS" });
-    for (const ref of finding.evidenceRefs) if (!evidenceRefs.has(`${ref.packId}:${ref.evidenceId}`)) errors.push({ path: `${path}.evidenceRefs`, code: "UNKNOWN_REFERENCE" });
-    if (finding.kbRefs.length === 0 || finding.kbRefs.some((id) => !goldenRecords.has(id))) errors.push({ path: `${path}.kbRefs`, code: "UNKNOWN_REFERENCE" });
+    const currentTargetCopy = text(finding.currentTargetCopy);
+    const proposedTargetCopy = text(finding.proposedTargetCopy);
+    if (!text(finding.sourceCopy).trim() || !currentTargetCopy.trim() || !proposedTargetCopy.trim() || currentTargetCopy.trim() === proposedTargetCopy.trim()) errors.push({ path, code: "INVALID_COPY" });
+    if (!text(finding.businessImpact).trim() || !text(finding.rationale).trim() || typeof finding.confidence !== "number" || finding.confidence < 0 || finding.confidence > 1) errors.push({ path, code: "INVALID_ANALYSIS" });
+    const componentRef = (finding.componentRef && typeof finding.componentRef === "object" ? finding.componentRef : {}) as Partial<PaidFinding["componentRef"]>;
+    if (!text(componentRef.kind).trim() || !text(componentRef.value).trim()) errors.push({ path: `${path}.componentRef`, code: "INVALID_COMPONENT_REF" });
+    const findingEvidence = Array.isArray(finding.evidenceRefs) ? finding.evidenceRefs : [];
+    for (const ref of findingEvidence) if (!ref || typeof ref !== "object" || !evidenceRefs.has(`${text(ref.packId)}:${text(ref.evidenceId)}`)) errors.push({ path: `${path}.evidenceRefs`, code: "UNKNOWN_REFERENCE" });
+    const kbRefs = Array.isArray(finding.kbRefs) ? finding.kbRefs : [];
+    if (kbRefs.length === 0 || kbRefs.some((id) => typeof id !== "string" || !goldenRecords.has(id))) errors.push({ path: `${path}.kbRefs`, code: "UNKNOWN_REFERENCE" });
   }
   for (const pairId of report.auditedPairIds) if (!pairs.has(pairId) || !audit.selectedPairIds.includes(pairId)) errors.push({ path: "auditedPairIds", code: "UNKNOWN_REFERENCE" });
   if (!report.generation.hermesRunId || report.generation.hermesRunId !== audit.hermesRunId) errors.push({ path: "generation.hermesRunId", code: "RUN_MISMATCH" });

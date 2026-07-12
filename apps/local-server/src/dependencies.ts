@@ -6,7 +6,8 @@ import { assertPublicResolution, assertSafeCaptureUrl } from "../../runtime/src/
 import type { IntakeInput } from "../../web/src/lib/contracts.ts";
 import type { CapturePacket, GoldenReference, MarketSource, PagePreview } from "./service.ts";
 import type { ArtifactRef, PaidAudit, PagePair } from "@nativas/contracts";
-import { selectPaidPagePairs, type DiscoveredLink } from "./discovery.ts";
+import { selectPaidPagePairs, selectVerifiedPagePairs, type DiscoveredLink } from "./discovery.ts";
+import type { PagePairEvidence } from "./paid-workflow.ts";
 
 const maxHtmlBytes = 2_000_000;
 
@@ -67,7 +68,49 @@ export async function discoverPaidPagePairs(audit: PaidAudit): Promise<PagePair[
   const sourcePage = sourceHome === initial.url ? initial : await fetchHtml(new URL(sourceHome));
   const targetPage = targetHome === initial.url ? initial : await fetchHtml(new URL(targetHome));
   const links = pairHomepageLinks(sourcePage.html, sourcePage.url, targetPage.html, targetPage.url);
-  return selectPaidPagePairs({ auditId: audit.auditId, direction: audit.input.direction, homepageUrls: [sourcePage.url, targetPage.url], links, verifiedHosts: [...new Set([new URL(sourcePage.url).hostname, new URL(targetPage.url).hostname])] });
+  const candidates = selectPaidPagePairs({ auditId: audit.auditId, direction: audit.input.direction, homepageUrls: [sourcePage.url, targetPage.url], links, verifiedHosts: [...new Set([new URL(sourcePage.url).hostname, new URL(targetPage.url).hostname])] }, 6);
+  return selectVerifiedPagePairs(candidates, verifyPublicPage, 2);
+}
+
+// LOCALE_PATTERN counterparts are constructed URLs; prove each page exists with a
+// bounded range request before it can enter the capture manifest.
+async function verifyPublicPage(rawUrl: string): Promise<boolean> {
+  try {
+    let current = assertSafeCaptureUrl(rawUrl);
+    for (let redirect = 0; redirect <= 3; redirect += 1) {
+      await assertPublicResolution(current, async (hostname) => (await lookup(hostname, { all: true })).map((item) => item.address));
+      const response = await fetch(current, { redirect: "manual", headers: { range: "bytes=0-0", "user-agent": "nativas.ai-local-audit/0.1" }, signal: AbortSignal.timeout(8_000) });
+      await response.body?.cancel().catch(() => undefined);
+      if ([301, 302, 303, 307, 308].includes(response.status)) {
+        const location = response.headers.get("location");
+        if (!location || redirect === 3) return false;
+        current = assertSafeCaptureUrl(new URL(location, current).href);
+        continue;
+      }
+      return response.ok || response.status === 206 || response.status === 416;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+// Bounded rendered-text evidence so the paid manager grounds copy findings in the
+// actual selected pages instead of guessing from URLs and the prior free report.
+export async function collectPaidPageEvidence(audit: PaidAudit, pairs: PagePair[]): Promise<PagePairEvidence[]> {
+  const results: PagePairEvidence[] = [];
+  for (const pair of pairs.slice(0, audit.limits.maxAdditionalPairs)) {
+    const [source, target] = await Promise.all([
+      fetchHtml(assertSafeCaptureUrl(pair.sourceUrl)),
+      fetchHtml(assertSafeCaptureUrl(pair.targetUrl)),
+    ]);
+    results.push({ pairId: pair.pairId, source: boundedPreview(extractPreview(source.html)), target: boundedPreview(extractPreview(target.html)) });
+  }
+  return results;
+}
+
+function boundedPreview(preview: PagePreview): PagePreview {
+  return { ...preview, text: preview.text.slice(0, 2400) };
 }
 
 export async function capturePaidPagePairs(audit: PaidAudit, pairs: PagePair[]): Promise<ArtifactRef[]> {

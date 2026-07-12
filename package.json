@@ -17,7 +17,7 @@
     "test:local": "node --test tests/local/*.test.ts",
     "test:cloudflare": "node --test tests/cloudflare/*.test.mjs",
     "test:convex": "node --test tests/convex/*.test.ts",
-    "test": "npm run test:backend && npm run test:local && npm run test:cloudflare && node --test tests/kb/*.test.mjs && npm run test:convex && npm test --workspace @nativas/web",
+    "test": "node --test tests/contracts/*.test.ts && npm run test:backend && npm run test:local && npm run test:cloudflare && node --test tests/kb/*.test.mjs && npm run test:convex && npm test --workspace @nativas/web",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "validate": "bash scripts/validate-repo.sh && bash scripts/validate-hermes-spec.sh"
   },

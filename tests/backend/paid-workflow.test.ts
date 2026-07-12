@@ -63,3 +63,42 @@ test("PHERMES-03 malformed or failed Hermes output never publishes", async () =>
     assert.equal(published, false);
   }
 });
+
+test("PHERMES-03 mechanical validation failure triggers at most two bounded repair turns", async () => {
+  const runs: string[] = [];
+  const makeHermes = (outputs: string[]) => ({
+    async createRun() { runs.push(`run_${runs.length + 1}`); return { run_id: runs.at(-1)! }; },
+    async waitForRun() { return { status: "completed" as const, output: outputs[Math.min(runs.length - 1, outputs.length - 1)] }; },
+    async stopRun() {},
+  });
+  const deps = {
+    async discover() { return [pair]; }, async capture() { return artifacts; },
+    async searchMarket() { return [{ id: "market_1", url: "https://evidence.test", title: "Evidence", content: "Evidence" }]; },
+    async retrieveGolden() { return [{ id: "kb_1", componentType: "PRIMARY_CTA", precedent: "Pattern", rationale: "Reason" }, { id: "kb_2", componentType: "HERO_HEADLINE", precedent: "Pattern", rationale: "Reason" }, { id: "kb_3", componentType: "TRUST_COPY", precedent: "Pattern", rationale: "Reason" }]; },
+    id: (prefix: string) => `${prefix}_1`,
+  };
+  const makeHooks = (current: PaidAudit, events: string[], onPublish: (report: PaidReport) => void) => ({
+    transition(status: PaidAudit["status"]) { current.status = status; }, event(type: string) { events.push(type); },
+    savePairs(values: PagePair[]) { current.selectedPairIds = values.map((value) => value.pairId); }, saveArtifacts() {},
+    bindRun(runId: string) { current.hermesRunId = runId; }, publish: onPublish, current: () => structuredClone(current),
+  });
+
+  // Invalid first output, valid repair output: publishes after exactly one repair run.
+  const repaired = structuredClone(audit); const repairedEvents: string[] = []; let published: PaidReport | undefined;
+  runs.length = 0;
+  await executePaidWorkflow({}, repaired, { ...deps, hermes: makeHermes(["{\"broken\": true}", output]) }, makeHooks(repaired, repairedEvents, (report) => { published = report; }));
+  assert.equal(repaired.status, "PAID_REPORT");
+  assert.equal(runs.length, 2, "one initial run plus exactly one repair run");
+  assert.ok(repairedEvents.includes("REPORT_REPAIR_REQUESTED"));
+  assert.equal(published?.generation.hermesRunId, "run_2", "report is bound to the accepted repair run");
+
+  // Never-valid output: one initial run plus two repairs, then a typed terminal failure.
+  const exhausted = structuredClone(audit); const exhaustedEvents: string[] = [];
+  runs.length = 0;
+  await assert.rejects(
+    executePaidWorkflow({}, exhausted, { ...deps, hermes: makeHermes(["nonsense"]) }, makeHooks(exhausted, exhaustedEvents, () => { throw new Error("must not publish"); })),
+    /REPORT_INVALID/,
+  );
+  assert.equal(runs.length, 3, "repairs are bounded at two");
+  assert.equal(exhaustedEvents.filter((type) => type === "REPORT_REPAIR_REQUESTED").length, 2);
+});

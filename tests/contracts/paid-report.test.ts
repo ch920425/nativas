@@ -19,3 +19,22 @@ test("PREPORT-01 rejects unknown screenshot, duplicate ranks, unchanged copy, an
   assert.equal(result.ok, false);
   if (!result.ok) assert.deepEqual(new Set(result.errors.map((error) => error.code)), new Set(["DUPLICATE_OR_INVALID_RANK", "UNKNOWN_REFERENCE", "INVALID_COPY", "RUN_MISMATCH"]));
 });
+
+test("PREPORT-01 malformed model findings produce typed errors, never validator exceptions", () => {
+  const malformed = structuredClone(report);
+  malformed.findings = [
+    // Entirely missing fields.
+    {} as never,
+    // Wrong types everywhere.
+    { findingId: 7, rank: "1", pairId: 42, targetUrl: null, screenshotArtifactId: {}, componentRef: "hero", sourceCopy: null, currentTargetCopy: 3, proposedTargetCopy: 3, businessImpact: undefined, rationale: [], confidence: "high", evidenceRefs: "market_1", kbRefs: "kb" } as never,
+    // Confidence missing entirely must not slip through numeric comparisons.
+    { findingId: "f3", rank: 3, pairId: "pair_1", targetUrl: pair.targetUrl, screenshotArtifactId: "shot_1", componentType: "PRIMARY_CTA", issueType: "CTA_MARKET_FIT", severity: "HIGH", componentRef: { kind: "TEXT_ANCHOR", value: "hero" }, sourceCopy: "소스", currentTargetCopy: "Current", proposedTargetCopy: "Proposed", businessImpact: "Impact", rationale: "Reason", evidenceRefs: [], kbRefs: ["kb_1"] } as never,
+  ];
+  const validation = validatePaidReport(malformed, paid, new Map([[pair.pairId, pair]]), new Map([[screenshot.artifactId, screenshot]]), new Set(["linkup:market_1"]), new Set(["kb_1"]));
+  assert.equal(validation.ok, false);
+  if (!validation.ok) {
+    assert.ok(validation.errors.some((error) => error.path === "findings[0].findingId" && error.code === "DUPLICATE_OR_MISSING_ID"));
+    assert.ok(validation.errors.some((error) => error.path === "findings[1].componentRef" && error.code === "INVALID_COMPONENT_REF"));
+    assert.ok(validation.errors.some((error) => error.path === "findings[2]" && error.code === "INVALID_ANALYSIS"), "missing confidence must be invalid");
+  }
+});

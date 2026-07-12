@@ -20,7 +20,7 @@ const rolePatterns: Array<[PageRole, RegExp, number]> = [
 
 export function selectPaidPagePairs(input: {
   auditId: string; direction: Direction; homepageUrls: [string, string]; links: DiscoveredLink[]; verifiedHosts: string[];
-}): PagePair[] {
+}, limit = 2): PagePair[] {
   const homes = new Set(input.homepageUrls.map(canonicalUrl));
   const hosts = new Set(input.verifiedHosts.map((host) => host.toLowerCase()));
   const [sourceLocale, targetLocale] = localesFor(input.direction);
@@ -49,9 +49,33 @@ export function selectPaidPagePairs(input: {
   candidates.sort((a, b) => b.discoveryScore - a.discoveryScore || a.sourceUrl.localeCompare(b.sourceUrl));
   const selected: PagePair[] = [];
   for (const candidate of candidates) {
-    if (selected.length === 2) break;
+    if (selected.length === limit) break;
     if (selected.length === 1 && selected[0].role === candidate.role && candidates.some((other) => other.role !== candidate.role && !selected.includes(other))) continue;
     selected.push(candidate);
+  }
+  return selected;
+}
+
+/**
+ * Both sides of a pair must actually resolve before capture: LOCALE_PATTERN
+ * counterparts are constructed, not observed, so a candidate can 404. Verifies
+ * ranked candidates in order (role diversity first, then backfill regardless
+ * of role) and returns at most `limit` fully verified pairs.
+ */
+export async function selectVerifiedPagePairs(candidates: PagePair[], verify: (url: string) => Promise<boolean>, limit = 2): Promise<PagePair[]> {
+  const cache = new Map<string, Promise<boolean>>();
+  const check = (url: string) => {
+    if (!cache.has(url)) cache.set(url, verify(url).catch(() => false));
+    return cache.get(url)!;
+  };
+  const selected: PagePair[] = [];
+  for (const diversityPass of [true, false]) {
+    for (const candidate of candidates) {
+      if (selected.length === limit) break;
+      if (selected.includes(candidate)) continue;
+      if (diversityPass && selected.length === 1 && selected[0].role === candidate.role) continue;
+      if ((await check(candidate.sourceUrl)) && (await check(candidate.targetUrl))) selected.push(candidate);
+    }
   }
   return selected;
 }

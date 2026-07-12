@@ -55,3 +55,29 @@ test("PDISC-01 canonicalizes tracking variants, deduplicates pairs, and prefers 
   assert.equal(new Set(selected.map((pair) => pair.role)).size, 2);
   assert.ok(selected.every((pair) => !pair.sourceUrl.includes("utm_")));
 });
+
+test("PDISC-01 verification drops unreachable constructed pairs and backfills lower-ranked candidates", async () => {
+  const { selectVerifiedPagePairs } = await import("../../apps/local-server/src/discovery.ts");
+  const pair = (id: string, role: "PRICING" | "PRODUCT" | "OTHER", score: number) => ({
+    pairId: id, auditId: "paid_1", role, sourceUrl: `https://acme.com/ko/${id}`, targetUrl: `https://acme.com/en/${id}`,
+    sourceLocale: "ko-KR" as const, targetLocale: "en-US" as const, pairingMethod: "LOCALE_PATTERN" as const,
+    pairingEvidence: "LOCALE_PATTERN:explicit", discoveryScore: score,
+  });
+  const candidates = [pair("pricing", "PRICING", 100), pair("product", "PRODUCT", 90), pair("other", "OTHER", 40)];
+  const checked: string[] = [];
+  const verify = async (url: string) => { checked.push(url); return !url.includes("/en/pricing"); };
+
+  const selected = await selectVerifiedPagePairs(candidates, verify, 2);
+  assert.deepEqual(selected.map((p) => p.pairId), ["product", "other"], "404ing top candidate is dropped and backfilled");
+  assert.equal(new Set(checked).size, checked.length, "each URL is verified at most once");
+
+  const none = await selectVerifiedPagePairs(candidates, async () => false, 2);
+  assert.equal(none.length, 0, "no verified pairs means zero pairs, never unverified capture input");
+
+  const sameRole = [pair("a", "PRODUCT", 90), pair("b", "PRODUCT", 80), pair("c", "PRICING", 70)];
+  const diverse = await selectVerifiedPagePairs(sameRole, async () => true, 2);
+  assert.deepEqual(new Set(diverse.map((p) => p.role)), new Set(["PRODUCT", "PRICING"]), "role diversity is preferred when all verify");
+
+  const onlySame = await selectVerifiedPagePairs([pair("a", "PRODUCT", 90), pair("b", "PRODUCT", 80)], async () => true, 2);
+  assert.equal(onlySame.length, 2, "second pass fills remaining slots when only one role exists");
+});

@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { LocalAuditService } from "./service.ts";
-import { captureHomepagePair, capturePaidPagePairs, createBrowserArtifactCapability, discoverPaidPagePairs, retrieveGoldenReferences, searchMarketEvidence } from "./dependencies.ts";
+import { captureHomepagePair, capturePaidPagePairs, collectPaidPageEvidence, createBrowserArtifactCapability, discoverPaidPagePairs, retrieveGoldenReferences, searchMarketEvidence } from "./dependencies.ts";
 import { startManagedHermes } from "./hermes-native.ts";
 import { assertExpectedDodoPayment, createDodoCheckoutGateway, createDodoWebhookVerifier } from "./dodo.ts";
 
@@ -10,11 +10,12 @@ export async function startLocalApi(port = Number(process.env.NATIVAS_API_PORT ?
   const runtimeRoot = resolve(".runtime/nativas-local");
   const managed = await startManagedHermes(resolve(runtimeRoot, "hermes.log"), Number(process.env.NATIVAS_HERMES_PORT ?? 8642));
   const service = new LocalAuditService({
-    statePath: resolve(runtimeRoot, "audits.json"), capture: captureHomepagePair, searchMarket: searchMarketEvidence,
+    statePath: resolve(runtimeRoot, "audits.json"), telemetryPath: resolve(runtimeRoot, "telemetry.jsonl"), capture: captureHomepagePair, searchMarket: searchMarketEvidence,
     retrieveGolden: retrieveGoldenReferences, hermes: managed.client, checkout: createDodoCheckoutGateway(),
     paid: {
       discover: discoverPaidPagePairs,
       capture: capturePaidPagePairs,
+      pageEvidence: collectPaidPageEvidence,
       searchMarket: (audit) => searchMarketEvidence(audit.input),
       retrieveGolden: (audit) => retrieveGoldenReferences(audit.input),
     },
@@ -71,7 +72,7 @@ async function route(service: LocalAuditService, webhookVerifier: ReturnType<typ
       const expiresAt = Math.floor(Date.now() / 1000) + 300;
       return send(response, 200, { token: createBrowserArtifactCapability(auditId, artifactId, expiresAt), expiresAt });
     }
-    const match = url.pathname.match(/^\/api\/audits\/([^/]+)(?:\/(cancel|checkout|report))?$/);
+    const match = url.pathname.match(/^\/api\/audits\/([^/]+)(?:\/(cancel|checkout|report|trace))?$/);
     if (!match) return send(response, 404, { error: "not found" });
     const auditId = decodeURIComponent(match[1]);
     if (request.method === "GET" && !match[2]) {
@@ -81,6 +82,10 @@ async function route(service: LocalAuditService, webhookVerifier: ReturnType<typ
     if (request.method === "GET" && match[2] === "report") {
       const report = await service.getPaidReport(auditId);
       return send(response, report ? 200 : 404, report ?? { error: "Paid report not found" });
+    }
+    if (request.method === "GET" && match[2] === "trace") {
+      const spans = await service.getTrace(auditId);
+      return send(response, spans ? 200 : 404, spans ? { auditId, spans } : { error: "Audit not found" });
     }
     if (request.method === "POST" && match[2] === "cancel") return send(response, 200, await service.cancel(auditId));
     if (request.method === "POST" && match[2] === "checkout") return send(response, 200, await service.createCheckout(auditId));

@@ -95,7 +95,7 @@ export function isPublicAddress(address) {
   return mapped ? isPublicAddress(mapped[1]) : !/^2001:db8(?::|$)/.test(normalized);
 }
 
-async function resolvePublic(hostname, fetcher = fetch) {
+async function resolvePublic(hostname, fetcher = (...args) => fetch(...args)) {
   const endpoint = new URL("https://cloudflare-dns.com/dns-query");
   endpoint.searchParams.set("name", hostname);
   endpoint.searchParams.set("type", "A");
@@ -228,15 +228,20 @@ async function snapshotPage(browser, finalUrl, sleep) {
     gotoOptions: { waitUntil: "domcontentloaded", timeout: 30_000 },
   };
   let response;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  const attempts = 4;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    // Browser Rendering enforces per-minute browser limits; 429/5xx needs real backoff.
+    const backoffMs = 2000 * (attempt + 1);
     try {
       response = await browser.quickAction("snapshot", options);
     } catch (error) {
-      if (attempt === 0 && /timeout|429|rate/i.test(String(error))) { await sleep(100); continue; }
+      if (attempt < attempts - 1 && /timeout|429|rate|busy|limit/i.test(String(error))) { await sleep(backoffMs); continue; }
+      console.error(JSON.stringify({ stage: "browser-snapshot", error: String(error?.message ?? error).slice(0, 300) }));
       throw typedError("BROWSER_CAPTURE_FAILED", 502);
     }
     if (response.status === 429 || response.status >= 500) {
-      if (attempt === 0) { await response.body?.cancel(); await sleep(100); continue; }
+      if (attempt < attempts - 1) { await response.body?.cancel(); await sleep(backoffMs); continue; }
+      console.error(JSON.stringify({ stage: "browser-snapshot", status: response.status }));
       throw typedError("BROWSER_CAPTURE_FAILED", 502);
     }
     break;
@@ -373,10 +378,14 @@ async function handleArtifact(request, env, auditId, artifactId, dependencies) {
 }
 
 export function createEvidencePlane(overrides = {}) {
+  // Global fetch must stay attached to the global scope in workerd; a detached
+  // reference (or one invoked as a method of another object) throws
+  // "Illegal invocation", so wrap it in an arrow function.
+  const safeFetch = overrides.fetch ?? ((...args) => fetch(...args));
   const dependencies = {
     now: overrides.now ?? Date.now,
-    fetch: overrides.fetch ?? fetch,
-    resolvePublic: overrides.resolvePublic ?? ((hostname) => resolvePublic(hostname, overrides.fetch ?? fetch)),
+    fetch: safeFetch,
+    resolvePublic: overrides.resolvePublic ?? ((hostname) => resolvePublic(hostname, safeFetch)),
     sleep: overrides.sleep ?? ((milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds))),
   };
   return async function routeEvidence(request, env) {
@@ -396,7 +405,8 @@ export function createEvidencePlane(overrides = {}) {
     } catch (error) {
       const code = error?.code ?? "EVIDENCE_PLANE_FAILED";
       const status = error?.status ?? 500;
-      console.error(JSON.stringify({ requestId, route: url.pathname, stage: "evidence-plane", status, error: code }));
+      const detail = code === "EVIDENCE_PLANE_FAILED" ? String(error?.message ?? error).slice(0, 300) : undefined;
+      console.error(JSON.stringify({ requestId, route: url.pathname, stage: "evidence-plane", status, error: code, ...(detail ? { detail } : {}) }));
       return jsonError(code, status, requestId);
     }
   };
