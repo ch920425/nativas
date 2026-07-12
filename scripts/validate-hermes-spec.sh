@@ -52,7 +52,7 @@ expected = {
 entries = [manifest["manager"], *manifest["specialists"]]
 actual = {entry["id"]: entry["path"] for entry in entries}
 assert actual == expected, f"unexpected skill manifest: {actual}"
-assert all(entry["version"] == "1.0.0" for entry in entries)
+assert all(entry["version"] == "1.1.0" for entry in entries)
 for relative in actual.values():
     path = (root / relative).resolve()
     assert path.is_relative_to(root.resolve()), f"skill path escapes repo: {relative}"
@@ -98,10 +98,13 @@ assert "parentCapability" in manager
 assert "delegate_task(tasks=[...])" in manager
 assert 'role: "leaf"' in manager
 assert "exactly three" in manager
+assert "PAID_DEEP_AUDIT_V1" in manager
+assert "get_artifact_image" in manager
+assert "one to six" in manager
 
 for relative in expected.values():
     text = (root / relative).read_text()
-    assert "version: 1.0.0" in text
+    assert "version: 1.1.0" in text
     if relative != expected["nativas-manager"]:
         assert "SpecialistResultV1" in text
         assert "Never call it, guess a `parentCapability`, or ask for one" in text

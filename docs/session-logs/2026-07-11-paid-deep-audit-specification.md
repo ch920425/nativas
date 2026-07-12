@@ -19,3 +19,12 @@ The paid Dodo transaction, signed webhook, reconciliation fallback, paid audit I
 ## Deliverable
 
 This session produces a new implementation-ready completion specification covering the smallest robust end-to-end architecture, explicit contracts and state transitions, production infrastructure, security, observability, deployment/rollback, and a risk-weighted test matrix requiring at least 95% meaningful production-like coverage.
+
+## Implementation execution checkpoint
+
+- Activated the repo ultrawork workflow and froze the v2 completion contract as the acceptance source of truth.
+- Split implementation into independent runtime/contracts, Cloudflare evidence-plane, and paid frontend lanes; Hermes skills and final integration remain leader-owned.
+- Confirmed Hermes Agent `0.18.2` Runs accepts text input and the active `nativas` profile exposes native delegation but no screenshot artifact capability. The manager/specialist contract is being upgraded to require real pixel access before visual claims.
+- Confirmed Cloudflare OAuth has Browser write access, but R2 API requests fail with Cloudflare code `10042` until R2 is activated.
+- The signed-in R2 activation page shows `$0.00` due now, an included free tier, usage-based charges above the tier, automatic renewal, and an existing payment method. Activation therefore remains an explicit billing action and was not clicked automatically.
+- Confirmed the named-tunnel connector token and dedicated capture token are not yet present in macOS Keychain; the existing edge-origin token is present.

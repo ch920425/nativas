@@ -8,23 +8,23 @@
   "hashPolicy": "sha256-file-bytes-at-run-creation",
   "manager": {
     "id": "nativas-manager",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "path": "hermes/skills/nativas-manager/SKILL.md"
   },
   "specialists": [
     {
       "id": "nativas-visual-context",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "path": "hermes/skills/nativas-visual-context/SKILL.md"
     },
     {
       "id": "nativas-market-copy",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "path": "hermes/skills/nativas-market-copy/SKILL.md"
     },
     {
       "id": "nativas-evidence-qa",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "path": "hermes/skills/nativas-evidence-qa/SKILL.md"
     }
   ]
