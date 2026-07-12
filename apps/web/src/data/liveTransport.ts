@@ -3,7 +3,13 @@ import type { AuditTransport, AuditView, CheckoutSession, IntakeInput } from "..
 type FetchLike = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 type LiveTransportOptions = { fetchImpl?: FetchLike; pollMs?: number };
 
-const terminal = new Set(["FREE_REPORT", "PAID_REPORT", "FAILED", "CANCELLED"]);
+const alwaysTerminal = new Set(["PAID_REPORT", "FAILED", "CANCELLED"]);
+
+function isTerminal(view: AuditView) {
+  if (alwaysTerminal.has(view.status)) return true;
+  if (view.status !== "FREE_REPORT") return false;
+  return view.payment?.status !== "PENDING_CONFIRMATION";
+}
 
 export function createLiveTransport(apiBase: string, options: LiveTransportOptions = {}): AuditTransport {
   const fetchImpl = options.fetchImpl ?? fetch;
@@ -45,7 +51,7 @@ export function createLiveTransport(apiBase: string, options: LiveTransportOptio
               previous = serialized;
               onChange(view);
             }
-            if (terminal.has(view.status)) {
+            if (isTerminal(view)) {
               active = false;
               return;
             }

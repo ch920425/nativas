@@ -57,6 +57,19 @@ describe("live HTTP transport", () => {
     unsubscribe();
   });
 
+  it("keeps polling a free report while Dodo confirmation is pending", async () => {
+    const pending = { ...baseView, status: "FREE_REPORT" as const, payment: { paymentId: "pay_1", status: "PENDING_CONFIRMATION" as const } };
+    const succeeded = { ...pending, payment: { paymentId: "pay_1", status: "SUCCEEDED" as const }, paidAuditId: "aud_paid_1", paidHermesRunId: "run_paid_1" };
+    const states: AuditView[] = [pending, succeeded];
+    const fetchImpl = vi.fn(async () => response(states.shift() ?? succeeded));
+    const transport = createLiveTransport("http://127.0.0.1:8787", { fetchImpl, pollMs: 5 });
+    const seen: AuditView[] = [];
+    const unsubscribe = transport.subscribe("aud_live_1", (view) => seen.push(view));
+    await vi.waitFor(() => expect(seen.at(-1)?.payment?.status).toBe("SUCCEEDED"));
+    expect(fetchImpl.mock.calls.length).toBeGreaterThanOrEqual(2);
+    unsubscribe();
+  });
+
   it("returns null only for a real 404 and surfaces other API failures", async () => {
     const notFound = createLiveTransport("http://127.0.0.1:8787", { fetchImpl: async () => response({ error: "missing" }, 404) });
     await expect(notFound.get("missing")).resolves.toBeNull();
