@@ -3,13 +3,14 @@ import { resolve } from "node:path";
 import { LocalAuditService } from "./service.ts";
 import { captureHomepagePair, retrieveGoldenReferences, searchMarketEvidence } from "./dependencies.ts";
 import { startManagedHermes } from "./hermes-native.ts";
-import { createDodoCheckoutGateway } from "./dodo.ts";
+import { createDodoCheckoutGateway, createDodoWebhookVerifier } from "./dodo.ts";
 
 export async function startLocalApi(port = Number(process.env.NATIVAS_API_PORT ?? 8787)) {
   const runtimeRoot = resolve(".runtime/nativas-local");
   const managed = await startManagedHermes(resolve(runtimeRoot, "hermes.log"), Number(process.env.NATIVAS_HERMES_PORT ?? 8642));
   const service = new LocalAuditService({ statePath: resolve(runtimeRoot, "audits.json"), capture: captureHomepagePair, searchMarket: searchMarketEvidence, retrieveGolden: retrieveGoldenReferences, hermes: managed.client, checkout: createDodoCheckoutGateway() });
-  const server = createServer(async (request, response) => route(service, request, response));
+  const webhookVerifier = createDodoWebhookVerifier();
+  const server = createServer(async (request, response) => route(service, webhookVerifier, request, response));
   await new Promise<void>((resolveReady, reject) => { server.once("error", reject); server.listen(port, "127.0.0.1", resolveReady); });
   return {
     port,
@@ -21,7 +22,7 @@ export async function startLocalApi(port = Number(process.env.NATIVAS_API_PORT ?
   };
 }
 
-async function route(service: LocalAuditService, request: IncomingMessage, response: ServerResponse) {
+async function route(service: LocalAuditService, webhookVerifier: ReturnType<typeof createDodoWebhookVerifier>, request: IncomingMessage, response: ServerResponse) {
   const edgeToken = process.env.NATIVAS_EDGE_TOKEN;
   if (edgeToken && request.headers["x-nativas-edge-token"] !== edgeToken) {
     return send(response, 401, { error: "edge authorization required" });
@@ -33,6 +34,21 @@ async function route(service: LocalAuditService, request: IncomingMessage, respo
   const url = new URL(request.url ?? "/", "http://127.0.0.1");
   try {
     if (request.method === "GET" && url.pathname === "/health") return send(response, 200, { ok: true, runtime: "local", hermes: "native-runs" });
+    if (request.method === "POST" && url.pathname === "/api/webhooks/dodo") {
+      const raw = await rawBody(request);
+      const headers = {
+        "webhook-id": String(request.headers["webhook-id"] ?? ""),
+        "webhook-signature": String(request.headers["webhook-signature"] ?? ""),
+        "webhook-timestamp": String(request.headers["webhook-timestamp"] ?? ""),
+      };
+      const event = webhookVerifier.unwrap(raw, headers);
+      if (event.type !== "payment.succeeded") return send(response, 202, { received: true, ignored: true });
+      const auditId = event.data.metadata?.auditId;
+      const paymentId = event.data.payment_id;
+      if (!auditId || !paymentId) throw new Error("Dodo webhook is missing payment metadata.");
+      await service.confirmPayment(auditId, paymentId);
+      return send(response, 200, { received: true });
+    }
     if (request.method === "POST" && url.pathname === "/api/audits") return send(response, 201, await service.submit(await body(request)));
     const match = url.pathname.match(/^\/api\/audits\/([^/]+)(?:\/(cancel|checkout))?$/);
     if (!match) return send(response, 404, { error: "not found" });
@@ -51,6 +67,10 @@ async function route(service: LocalAuditService, request: IncomingMessage, respo
 }
 
 async function body(request: IncomingMessage) {
+  return JSON.parse((await rawBody(request)) || "{}");
+}
+
+async function rawBody(request: IncomingMessage) {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of request) {
@@ -59,7 +79,7 @@ async function body(request: IncomingMessage) {
     if (size > 64_000) throw new Error("request too large");
     chunks.push(buffer);
   }
-  return JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}");
+  return Buffer.concat(chunks).toString("utf8");
 }
 
 function send(response: ServerResponse, status: number, payload: unknown) {

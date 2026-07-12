@@ -37,6 +37,7 @@ export class LocalAuditService {
   private readonly deps: Dependencies;
   private readonly audits = new Map<string, AuditView>();
   private readonly checkoutSessions = new Map<string, { checkoutUrl: string; paymentId: string }>();
+  private readonly paymentChecks = new Map<string, number>();
   private readonly id: (prefix: string) => string;
 
   constructor(deps: Dependencies) {
@@ -63,6 +64,14 @@ export class LocalAuditService {
 
   async get(auditId: string): Promise<AuditView | null> {
     const view = this.audits.get(auditId);
+    if (view?.payment?.status === "PENDING_CONFIRMATION" && this.deps.checkout) {
+      const lastCheck = this.paymentChecks.get(auditId) ?? 0;
+      if (Date.now() - lastCheck > 3_000) {
+        this.paymentChecks.set(auditId, Date.now());
+        const paymentId = await this.deps.checkout.findSucceededPayment(auditId).catch(() => null);
+        if (paymentId) await this.confirmPayment(auditId, paymentId);
+      }
+    }
     return view ? structuredClone(view) : null;
   }
 
@@ -89,6 +98,19 @@ export class LocalAuditService {
     this.event(view, { type: "PAYMENT_PENDING", actor: "PAYMENT", status: "QUEUED", safeLabel: "Dodo checkout created; awaiting signed payment confirmation" });
     this.save(view);
     return session;
+  }
+
+  async confirmPayment(auditId: string, paymentId: string): Promise<AuditView> {
+    const view = this.require(auditId);
+    if (view.payment?.status === "SUCCEEDED") return structuredClone(view);
+    if (!view.payment || view.status !== "FREE_REPORT") throw new Error("Payment does not match a pending free-report checkout.");
+    view.payment = { paymentId, status: "SUCCEEDED" };
+    view.paidAuditId ??= this.id("aud_local_paid");
+    this.event(view, { type: "PAYMENT_SUCCEEDED", actor: "PAYMENT", status: "SUCCEEDED", safeLabel: "Dodo payment verified by signed webhook" });
+    this.event(view, { type: "PAID_RUN_QUEUED", actor: "RUNTIME", status: "QUEUED", safeLabel: "One context-linked paid continuation queued" });
+    this.save(view);
+    queueMicrotask(() => void this.startPaid(view.auditId));
+    return structuredClone(view);
   }
 
   private async runFree(auditId: string, input: IntakeInput) {

@@ -19,5 +19,8 @@ fi
 if [ -z "${DODO_PRODUCT_ID:-}" ]; then
   DODO_PRODUCT_ID="$(security find-generic-password -a "$USER" -s nativas-dodo-product-id -w 2>/dev/null || true)"
 fi
-export DODO_PAYMENTS_API_KEY DODO_PRODUCT_ID
+if [ -z "${DODO_PAYMENTS_WEBHOOK_KEY:-}" ]; then
+  DODO_PAYMENTS_WEBHOOK_KEY="$(security find-generic-password -a "$USER" -s nativas-dodo-webhook-key -w 2>/dev/null || true)"
+fi
+export DODO_PAYMENTS_API_KEY DODO_PRODUCT_ID DODO_PAYMENTS_WEBHOOK_KEY
 exec /opt/homebrew/bin/node apps/local-server/src/server.ts
