@@ -8,6 +8,7 @@ import type { HermesEvent, HermesRunClient, HermesRunResult } from "./service.ts
 export class HermesNativeClient implements HermesRunClient {
   private readonly baseUrl: string;
   private readonly apiKey: string;
+  private readyUntil = 0;
 
   constructor(baseUrl: string, apiKey: string) {
     this.baseUrl = baseUrl;
@@ -40,6 +41,18 @@ export class HermesNativeClient implements HermesRunClient {
 
   async stopRun(runId: string) {
     await this.request(`/v1/runs/${encodeURIComponent(runId)}/stop`, { method: "POST", body: "{}" });
+  }
+
+  async checkReady() {
+    if (Date.now() < this.readyUntil) return;
+    const created = await this.createRun({
+      session_id: `nativas_canary_${Date.now()}`,
+      instructions: "Health check. Return exactly OK and no markdown.",
+      input: "OK",
+    });
+    const result = await this.waitForRun(created.run_id, () => undefined);
+    if (result.status !== "completed") throw new Error(result.error ?? "HERMES_PROVIDER_UNAVAILABLE");
+    this.readyUntil = Date.now() + 5 * 60_000;
   }
 
   private async consumeEvents(runId: string, onEvent: (event: HermesEvent) => void) {

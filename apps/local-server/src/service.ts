@@ -15,6 +15,7 @@ export type HermesRunClient = {
   createRun(input: { input: string; instructions: string; session_id: string }): Promise<{ run_id: string }>;
   waitForRun(runId: string, onEvent: (event: HermesEvent) => void): Promise<HermesRunResult>;
   stopRun(runId: string): Promise<void>;
+  checkReady?(): Promise<void>;
 };
 
 export type Dependencies = {
@@ -62,6 +63,7 @@ export class LocalAuditService {
 
   async submit(input: IntakeInput): Promise<AuditView> {
     assertIntake(input);
+    await this.deps.hermes.checkReady?.();
     const auditId = this.id("aud_local");
     const view: AuditView = { auditId, status: "SUBMITTED", direction: input.direction, homepageUrl: input.homepageUrl, audience: input.audience, launchGoal: input.launchGoal, degraded: false, events: [] };
     this.save(view);
@@ -443,7 +445,12 @@ function normalizeEvidenceRefs(value: unknown, marketIds: Set<string>): Array<{ 
 
 function preview(value: PagePreview) { return { headline: value.headline, supportingCopy: value.supportingCopy, cta: value.cta }; }
 
-function errorCode(message: string): "UNSAFE_URL" | "KB_UNAVAILABLE" | "REPORT_INVALID" | "HERMES_RUN_FAILED" {
+function isProviderAuthError(message: string) {
+  return /wrong api key|authentication|unauthorized|invalid.*api/i.test(message);
+}
+
+function errorCode(message: string): AuditErrorCode {
+  if (isProviderAuthError(message)) return "HERMES_PROVIDER_AUTH_FAILED";
   if (message.includes("UNSAFE_URL") || message.includes("INVALID_URL")) return "UNSAFE_URL";
   if (message.includes("KB_UNAVAILABLE")) return "KB_UNAVAILABLE";
   if (message.includes("REPORT_INVALID")) return "REPORT_INVALID";
@@ -451,6 +458,7 @@ function errorCode(message: string): "UNSAFE_URL" | "KB_UNAVAILABLE" | "REPORT_I
 }
 
 function paidErrorCode(message: string): AuditErrorCode {
+  if (isProviderAuthError(message)) return "HERMES_PROVIDER_AUTH_FAILED";
   for (const code of ["LOCALE_NOT_FOUND", "CAPTURE_INCOMPLETE", "KB_UNAVAILABLE", "RESEARCH_UNAVAILABLE", "REPORT_INVALID", "HERMES_START_UNCERTAIN", "HERMES_RUN_FAILED"] as const) if (message.includes(code)) return code;
   return "HERMES_RUN_FAILED";
 }

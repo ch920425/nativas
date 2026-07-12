@@ -194,6 +194,34 @@ test("real local workflow persists capture, Linkup, KB, Hermes events, and exact
   assert.deepEqual(completed?.usage, { inputTokens: 100, outputTokens: 50, totalTokens: 150 });
 });
 
+test("Hermes provider auth failure is canaried before persisting or running user work", async () => {
+  let captureCalls = 0;
+  let runCalls = 0;
+  const service = new LocalAuditService({
+    statePath: null,
+    capture: async () => {
+      captureCalls += 1;
+      return { sourceUrl: "https://example.com", targetUrl: "https://example.com", paired: false, source: { headline: "Source", supportingCopy: "Body", cta: "Go", text: "source" }, target: { headline: "Target", supportingCopy: "Body", cta: "Go", text: "target" } };
+    },
+    searchMarket: async () => [{ id: "market_1", url: "https://example.org", title: "Evidence", content: "Evidence" }],
+    retrieveGolden: async () => [{ id: "DEMO_SEED_KR_US_HERO", componentType: "HERO_HEADLINE", precedent: "Pattern", rationale: "Why" }, { id: "DEMO_SEED_KR_US_CTA", componentType: "PRIMARY_CTA", precedent: "Pattern", rationale: "Why" }, { id: "DEMO_SEED_KR_US_TRUST", componentType: "TRUST_COPY", precedent: "Pattern", rationale: "Why" }],
+    hermes: {
+      async checkReady() { throw new Error("HTTP 401: Wrong API Key"); },
+      async createRun() { runCalls += 1; return { run_id: "run_should_not_start" }; },
+      async waitForRun() { return { status: "failed", error: "should not run" }; },
+      async stopRun() {},
+    },
+  });
+
+  await assert.rejects(
+    service.submit({ homepageUrl: "https://example.com", direction: "KR_TO_US", audience: "US buyers", launchGoal: "Increase demos" }),
+    /Wrong API Key/,
+  );
+  assert.equal(captureCalls, 0);
+  assert.equal(runCalls, 0);
+  assert.equal(await service.get("aud_local_1"), null);
+});
+
 test("Dodo checkout is idempotent and does not start paid work before webhook confirmation", async () => {
   let run = 0;
   const service = new LocalAuditService({

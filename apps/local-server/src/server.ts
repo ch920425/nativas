@@ -87,7 +87,11 @@ async function route(service: LocalAuditService, webhookVerifier: ReturnType<typ
     return send(response, 405, { error: "method not allowed" });
   } catch (error) {
     const message = error instanceof Error ? error.message : "request failed";
-    return send(response, message === "Audit not found" ? 404 : 400, { error: message });
+    const authFailure = /wrong api key|authentication|unauthorized|invalid.*api/i.test(message);
+    return send(response, message === "Audit not found" ? 404 : authFailure ? 503 : 400, {
+      error: authFailure ? "Hermes provider authentication failed. Update the Cerebras key before starting a new audit." : message,
+      code: authFailure ? "HERMES_PROVIDER_AUTH_FAILED" : undefined,
+    });
   }
 }
 

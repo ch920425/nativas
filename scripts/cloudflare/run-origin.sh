@@ -22,6 +22,10 @@ export NATIVAS_API_PORT="${NATIVAS_API_PORT:-8787}"
 export NATIVAS_PUBLIC_URL="${NATIVAS_PUBLIC_URL:-https://nativas.ai}"
 export NATIVAS_HERMES_COMMAND="${NATIVAS_HERMES_COMMAND:-$(command -v hermes)}"
 export NATIVAS_HERMES_PROFILE="${NATIVAS_HERMES_PROFILE:-nativas}"
+if [ -z "${CEREBRAS_API_KEY:-}" ]; then
+  CEREBRAS_API_KEY="$(security find-generic-password -a "$USER" -s nativas-cerebras-api-key -w 2>/dev/null || true)"
+fi
+export CEREBRAS_API_KEY
 export DODO_ENVIRONMENT="${DODO_ENVIRONMENT:-test_mode}"
 if [ -z "${DODO_PAYMENTS_API_KEY:-}" ]; then
   DODO_PAYMENTS_API_KEY="$(security find-generic-password -a "$USER" -s nativas-dodo-api-key -w 2>/dev/null || true)"
