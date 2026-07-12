@@ -1,5 +1,7 @@
 # nativas.ai implementation specification
 
+> **Completion override (2026-07-11):** [TECH_SPEC_COMPLETION.md](TECH_SPEC_COMPLETION.md) is the authoritative contract for finishing the paid screenshot-grounded workflow. Where this original hackathon stop line treats a started paid Hermes run as sufficient, the completion specification requires a persisted `PAID_REPORT`.
+
 **Status:** implementation-ready contract v1
 **Build window:** 3.5 hours
 **Product:** autonomous KR ↔ US homepage localization audit powered by Hermes Agent
